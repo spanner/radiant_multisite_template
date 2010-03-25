@@ -1,0 +1,18 @@
+h1 #page_path {
+  color: #988a50;
+  font-size: 50%;
+  margin-top: 0;
+  font-weight: lighter;
+}
+
+h1 #page_path a {
+  color: #988a50;
+}
+
+h1 #page_path a:hover {
+  color: #c00;
+}
+
+#content .form-area .textbox {
+  width: 100%;
+}

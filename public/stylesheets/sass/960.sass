@@ -1,0 +1,54 @@
+@import constants.sass
+
+=grid(!count)
+  :width = (!count * !box) - (2 * !margin)
+  :display inline
+  :float left
+  :position relative
+  :margin-left = !margin
+  :margin-right = !margin
+=prefix(!count)
+  :padding-left = !count * !box
+=suffix(!count)
+  :padding-right = !count * !box
+=push(!count)
+  :left = !count * !box
+=pull(!count)
+  :left = !count * !box * -1
+=flush
+  :margin-left 0
+=flush_right
+  :margin-right 0
+=snug
+  :margin-left 0
+  :margin-right 0
+=clearfix
+
+=newline
+  :clear left
+
+.container_#{!grid}
+  :width = !width
+  :position relative
+  :margin-left auto
+  :margin-right auto
+  :overflow hidden
+  @for !marker from 1 through !grid
+    .grid_#{!marker}
+      +grid(!marker)
+    .prefix_#{!marker}
+      +prefix(!marker)
+    .suffix_#{!marker}
+      +suffix(!marker)
+    .push_#{!marker}
+      +push(!marker)
+    .pull_#{!marker}
+      +pull(!marker)
+  .flush, .alpha
+    +flush
+  .flush_right, .omega
+    +flush_right
+  .snug
+    +snug
+  .row, .newline
+    +newline
