@@ -1,0 +1,182 @@
+#upload_controls {
+  clear: both;
+}
+
+#content .form-area .keywords, #content .form-area .caption, #content .form-area .copyright {
+  width: 30%;
+  float: left;
+  margin: 16px 20px 10px 0;
+}
+
+#content .form-area .keywords .textbox, #content .form-area .caption .textbox, #content .form-area .copyright .textbox {
+  font-family:Georgia,Palatino,"Times New Roman",Times,serif;
+  font-size: 120%;
+  width: 100%;
+  margin: 0;
+  padding: 4px;
+}
+
+#content .form-area .keywords .textbox  {
+  color: #c00;
+}
+
+span.formnote {
+  font-size: 0.8em;
+  color: #c5c2b9;
+}
+
+.progressWrapper {
+  width: 100%;
+  margin: 2px 0;
+  overflow: hidden;
+}
+
+.progressContainer {
+  position: relative;
+  padding: 0;
+  background: #c00 url(/images/assets/redbg.png) repeat-x top left;
+  color: white;
+  height: 50px;
+  overflow: hidden;
+  -moz-border-radius: 5px;
+  -webkit-border-radius: 5px;
+}
+
+/* Message */
+.message {
+  margin: 1em 0;
+  padding: 10px 20px;
+  border: solid 1px #FFDD99;
+  background-color: #FFFFCC;
+  overflow: hidden;
+}
+
+/* Error */
+.red {
+  background-color: #FFEBEB;
+}
+
+.progressName {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  font-family: "Lucida Grande","Bitstream Vera Sans",Helvetica,Verdana,Arial,sans-serif;
+  font-weight: bold;
+  font-size: 1.1em;
+  line-height: 0.9;
+  color: white;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  z-index: 1000;
+}
+
+.progressName img {
+  margin: 2px 8px 2px 2px;
+}
+
+.progressBar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 4%;
+  background: #393 url(/images/assets/greenbg.png) repeat-x top left;
+  z-index: 990;
+  -moz-border-radius: 7px;
+  -webkit-border-radius: 7px;
+  -webkit-box-shadow: 1px 1px 3px #333;
+  -moz-box-shadow: 1px 1px 3px #333;
+}
+
+.progressBarStatus {
+  font-family: "Lucida Grande","Bitstream Vera Sans",Helvetica,Verdana,Arial,sans-serif;
+  opacity: 0.7;
+  font-size: 0.8em;
+  font-weight: lighter;
+  text-align: left;
+  white-space: nowrap;
+  padding-left: 26px;
+}
+
+a.progressCancel {
+  font-size: 0;
+  display: block;
+  height: 14px;
+  width: 14px;
+  float: right;
+}
+
+a.progressCancel:hover {
+  background-position: 0px 0px;
+}
+
+.progressWrapper .fileform {
+  z-index: 1010;
+  position: absolute;
+  top: 0;
+  left: 24px;
+  height: 46px;
+  overflow: hidden;
+  width: 95%;
+  background: #393 url(/images/assets/greenbg.png) repeat-x top left;  /* to cover absolutely-positioned content beneath */
+}
+
+.progressWrapper .fileform td.thumbnail {
+  width: 42px;
+  text-align: center;
+}
+
+.progressWrapper .fileform label {
+  display: block;
+  margin: 2px 0 0 0;
+  font-family: "Lucida Grande","Bitstream Vera Sans",Helvetica,Verdana,Arial,sans-serif;
+  color: white;
+  font-size: 75%;
+  font-weight: bold;
+}
+
+.progressWrapper .fileform input.textbox {
+  font-family: "Lucida Grande","Bitstream Vera Sans",Helvetica,Verdana,Arial,sans-serif;
+  width: 100%;
+  padding: 3px;
+  border: 1px solid #060;
+}
+
+.progressWrapper .fileform input.keywords {
+  color: #c00;
+}
+
+.progressWrapper td {
+  padding: 2px 10px;
+  overflow: hidden;
+}
+
+.progressWrapper p {
+  margin: 0;
+  padding: 6px;
+  font-family: "Lucida Grande","Bitstream Vera Sans",Helvetica,Verdana,Arial,sans-serif;
+  width: 100%;
+}
+
+.progressWrapper a {
+  color: white;
+  font-weight: bold;
+}
+
+.progressWrapper p span.caption, .progressWrapper p span.copyright, .progressWrapper p span.keywords {
+  color: #76ba76;
+  font-size: 80%;
+}
+
+.progressWrapper p img {
+  float: left;
+  margin: -4px 20px 0 4px;
+}
+
+/* -- SWFUpload Object Styles ------------------------------- */
+.swfupload {
+  vertical-align: top;
+}
+
+

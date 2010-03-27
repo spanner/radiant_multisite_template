@@ -21,10 +21,13 @@
 	url = git://github.com/SwankInnovations/radiant-sns-extension.git
 [submodule "vendor/extensions/sns_sass_filter"]
 	path = vendor/extensions/sns_sass_filter
-	url = git://github.com/SwankInnovations/radiant-sns-sass-filter-extension.git
+	url = git://github.com/spanner/radiant-sns-sass-filter-extension.git
 [submodule "vendor/extensions/sns_multisite"]
 	path = vendor/extensions/sns_multisite
 	url = git://github.com/spanner/radiant-sns-multisite-extension.git
 [submodule "vendor/extensions/sass_grid"]
 	path = vendor/extensions/sass_grid
 	url = git://github.com/spanner/radiant-sass_grid-extension.git
+[submodule "vendor/extensions/paperclipped_uploader"]
+	path = vendor/extensions/paperclipped_uploader
+	url = git://github.com/spanner/radiant-paperclipped_uploader-extension.git
