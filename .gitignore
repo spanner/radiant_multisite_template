@@ -7,3 +7,4 @@ doc/app
 public/assets
 public/assets/*
 public/stylesheets/sass/.sass-cache/*
+.sass_cache
