@@ -9,11 +9,28 @@
 #
 # It's strongly recommended to check this file into your version control system.
 
-ActiveRecord::Schema.define(:version => 20081203140407) do
+ActiveRecord::Schema.define(:version => 20091003095744) do
+
+  create_table "assets", :force => true do |t|
+    t.string   "caption"
+    t.string   "title"
+    t.string   "asset_file_name"
+    t.string   "asset_content_type"
+    t.integer  "asset_file_size"
+    t.integer  "created_by_id"
+    t.integer  "updated_by_id"
+    t.datetime "created_at"
+    t.datetime "updated_at"
+    t.integer  "original_width"
+    t.integer  "original_height"
+    t.string   "original_extension"
+    t.string   "upload_token"
+    t.integer  "site_id"
+  end
 
   create_table "config", :force => true do |t|
     t.string "key",   :limit => 40, :default => "", :null => false
-    t.string "value",               :default => ""
+    t.text   "value"
   end
 
   add_index "config", ["key"], :name => "key", :unique => true
@@ -33,6 +50,13 @@ ActiveRecord::Schema.define(:version => 20081203140407) do
     t.integer  "updated_by_id"
     t.string   "content_type",  :limit => 40
     t.integer  "lock_version",                 :default => 0
+    t.integer  "site_id"
+  end
+
+  create_table "page_attachments", :force => true do |t|
+    t.integer "asset_id"
+    t.integer "page_id"
+    t.integer "position"
   end
 
   create_table "page_parts", :force => true do |t|
@@ -46,10 +70,10 @@ ActiveRecord::Schema.define(:version => 20081203140407) do
 
   create_table "pages", :force => true do |t|
     t.string   "title"
-    t.string   "slug",          :limit => 100
-    t.string   "breadcrumb",    :limit => 160
-    t.string   "class_name",    :limit => 25
-    t.integer  "status_id",                    :default => 1,     :null => false
+    t.string   "slug",             :limit => 100
+    t.string   "breadcrumb",       :limit => 160
+    t.string   "class_name",       :limit => 25
+    t.integer  "status_id",                       :default => 1,     :null => false
     t.integer  "parent_id"
     t.integer  "layout_id"
     t.datetime "created_at"
@@ -57,10 +81,14 @@ ActiveRecord::Schema.define(:version => 20081203140407) do
     t.datetime "published_at"
     t.integer  "created_by_id"
     t.integer  "updated_by_id"
-    t.boolean  "virtual",                      :default => false, :null => false
-    t.integer  "lock_version",                 :default => 0
+    t.boolean  "virtual",                         :default => false, :null => false
+    t.integer  "lock_version",                    :default => 0
     t.string   "description"
     t.string   "keywords"
+    t.boolean  "sitemap"
+    t.string   "change_frequency"
+    t.string   "priority"
+    t.integer  "position"
   end
 
   add_index "pages", ["class_name"], :name => "pages_class_name"
@@ -77,6 +105,27 @@ ActiveRecord::Schema.define(:version => 20081203140407) do
   add_index "sessions", ["session_id"], :name => "index_sessions_on_session_id"
   add_index "sessions", ["updated_at"], :name => "index_sessions_on_updated_at"
 
+  create_table "sites", :force => true do |t|
+    t.string   "name"
+    t.string   "domain"
+    t.integer  "homepage_id"
+    t.integer  "position",      :default => 0
+    t.string   "base_domain"
+    t.integer  "created_by_id"
+    t.datetime "created_at"
+    t.integer  "updated_by_id"
+    t.datetime "updated_at"
+    t.string   "subtitle"
+    t.string   "abbreviation"
+  end
+
+  create_table "sites_users", :force => true do |t|
+    t.integer "site_id"
+    t.integer "user_id"
+    t.boolean "admin"
+    t.boolean "designer"
+  end
+
   create_table "snippets", :force => true do |t|
     t.string   "name",          :limit => 100, :default => "", :null => false
     t.string   "filter_id",     :limit => 25
@@ -86,9 +135,38 @@ ActiveRecord::Schema.define(:version => 20081203140407) do
     t.integer  "created_by_id"
     t.integer  "updated_by_id"
     t.integer  "lock_version",                 :default => 0
+    t.integer  "site_id"
   end
 
   add_index "snippets", ["name"], :name => "name", :unique => true
+
+  create_table "submenu_links", :force => true do |t|
+    t.string   "name"
+    t.string   "url"
+    t.integer  "user_id"
+    t.integer  "site_id"
+    t.integer  "created_by_id"
+    t.integer  "updated_by_id"
+    t.datetime "created_at"
+    t.datetime "updated_at"
+  end
+
+  add_index "submenu_links", ["site_id", "user_id"], :name => "index_links_by_site_and_user"
+
+  create_table "text_assets", :force => true do |t|
+    t.string   "class_name",    :limit => 25
+    t.string   "name",          :limit => 100
+    t.text     "content"
+    t.datetime "created_at"
+    t.datetime "updated_at"
+    t.integer  "created_by_id"
+    t.integer  "updated_by_id"
+    t.integer  "lock_version"
+    t.string   "filter_id",     :limit => 25
+    t.integer  "site_id"
+  end
+
+  add_index "text_assets", ["name", "class_name"], :name => "index_text_assets_on_name_and_class_name"
 
   create_table "users", :force => true do |t|
     t.string   "name",          :limit => 100
@@ -100,11 +178,12 @@ ActiveRecord::Schema.define(:version => 20081203140407) do
     t.integer  "created_by_id"
     t.integer  "updated_by_id"
     t.boolean  "admin",                        :default => false, :null => false
-    t.boolean  "developer",                    :default => false, :null => false
+    t.boolean  "designer",                     :default => false, :null => false
     t.text     "notes"
     t.integer  "lock_version",                 :default => 0
     t.string   "salt"
     t.string   "session_token"
+    t.string   "locale"
   end
 
   add_index "users", ["login"], :name => "login", :unique => true

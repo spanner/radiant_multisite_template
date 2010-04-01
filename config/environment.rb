@@ -12,20 +12,26 @@ require 'radius'
 Radiant::Initializer.run do |config|
   # Skip frameworks you're not going to use (only works if using vendor/rails).
   # To use Rails without a database, you must remove the Active Record framework
-  # config.frameworks -= [ :action_mailer ]
+  #config.frameworks -= [ :action_mailer ]
 
   # Only load the extensions named here, in the order given. By default all
   # extensions in vendor/extensions are loaded, in alphabetical order. :all
   # can be used as a placeholder for all extensions not explicitly named.
-  config.extensions = [:sites, :submenu, :paperclipped, :all ]
+  # config.extensions = [ :all ]
+  config.extensions = [:sites, :paperclipped, :all ]
+  
+  # By default, only English translations are loaded. Remove any of these from
+  # the list below if you'd like to provide any of the supported languages
+  config.extensions -= [:dutch_language_pack, :french_language_pack, :german_language_pack,
+                        :italian_language_pack, :japanese_language_pack, :russian_language_pack]
 
   # Your secret key for verifying cookie session data integrity.
   # If you change this key, all old sessions will become invalid!
   # Make sure the secret is at least 30 characters and all random,
   # no regular words or you'll be exposed to dictionary attacks.
   config.action_controller.session = {
-    :session_key => '_simple_session',
-    :secret      => '6626de834df7dcfb829167dd3e606470fd4947ca'
+    :session_key => '_multisited_session',
+    :secret      => '347ed043b749b9c7187c9739a8ffd430abdb61d4'
   }
 
   # Comment out this line if you want to turn off all caching, or
@@ -63,7 +69,7 @@ Radiant::Initializer.run do |config|
   # Set the default field error proc
   config.action_view.field_error_proc = Proc.new do |html, instance|
     if html !~ /label/
-      %{<div class="error-with-field">#{html} <small class="error">&bull; #{[instance.error_message].flatten.first}</small></div>}
+      %{<span class="error-with-field">#{html} <span class="error">&bull; #{[instance.error_message].flatten.first}</span></span>}
     else
       html
     end
