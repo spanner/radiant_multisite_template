@@ -1,4 +1,9 @@
-@import constants.sass
+// layout 
+
+!grid = 12
+!width = 960px
+!margin = 10px
+!box = !width / !grid
 
 =grid(!count)
   :width = (!count * !box) - (2 * !margin)
@@ -22,8 +27,6 @@
 =snug
   :margin-left 0
   :margin-right 0
-=clearfix
-
 =newline
   :clear left
 

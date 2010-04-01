@@ -10,9 +10,6 @@
 [submodule "vendor/extensions/sitemap_xml"]
 	path = vendor/extensions/sitemap_xml
 	url = git://github.com/Aissac/radiant-sitemap-xml-extension.git
-[submodule "vendor/extensions/submenu"]
-	path = vendor/extensions/submenu
-	url = git://github.com/spanner/radiant-submenu-extension.git
 [submodule "vendor/extensions/made_easy"]
 	path = vendor/extensions/made_easy
 	url = git://github.com/spanner/radiant-made_easy-extension.git
@@ -31,3 +28,9 @@
 [submodule "vendor/extensions/paperclipped_uploader"]
 	path = vendor/extensions/paperclipped_uploader
 	url = git://github.com/spanner/radiant-paperclipped_uploader-extension.git
+[submodule "vendor/extensions/tiny_paper"]
+	path = vendor/extensions/tiny_paper
+	url = git://github.com/spanner/radiant-tiny-paper-extension.git
+[submodule "vendor/extensions/mailer"]
+	path = vendor/extensions/mailer
+	url = git://github.com/spanner/radiant-mailer-extension.git
