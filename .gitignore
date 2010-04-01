@@ -10,3 +10,4 @@ public/assets/*
 public/stylesheets/sass/.sass-cache/*
 .sass_cache
 vendor/radiant
+config/database.yml
