@@ -1,10 +1,6 @@
-set :stages, %w(staging production)
-set :default_stage, "staging"
-require 'capistrano/ext/multistage'
-
-set :application, "simple_radiant"
+set :application, "multi_radiant"
 set :scm, :git
-set :repository, "git@github.com:spanner/#{application}.git"
+set :repository, "git://github.com/spanner/radiant_multisite_template.git"
 set :git_enable_submodules, 1
 set :ssh_options, { :forward_agent => true }
 
@@ -12,8 +8,8 @@ set :user, 'spanner'
 set :group, 'spanner'
 set :branch, 'master'
 
-role :web, "seagoon.spanner.org"
-role :app, "seagoon.spanner.org"
+role :web, "moriarty.spanner.org"
+role :app, "moriarty.spanner.org"
 # role :db,  "eccles.spanner.org", :primary => true
 
 set :deploy_to, "/var/www/#{application}"
