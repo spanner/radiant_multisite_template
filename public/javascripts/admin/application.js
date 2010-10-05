@@ -35,7 +35,7 @@ Event.addBehavior({
   
   'a.popup': Popup.TriggerBehavior(),
   
-  'table#site_map': SiteMapBehavior(),
+  'table#pages': SiteMapBehavior(),
   
   'input#page_title': function() {
     var title = this;
@@ -78,5 +78,8 @@ Event.addBehavior({
   
   'input.date': DateInputBehavior(),
   
-  'select#page_status_id':  PageStatusBehavior()
+  'select#page_status_id':  PageStatusBehavior(),
+  
+  'span.error':  ValidationErrorBehavior()
+  
 });

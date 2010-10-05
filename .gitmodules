@@ -4,24 +4,9 @@
 [submodule "vendor/extensions/paperclipped"]
 	path = vendor/extensions/paperclipped
 	url = git://github.com/spanner/paperclipped.git
-[submodule "vendor/extensions/drag_order"]
-	path = vendor/extensions/drag_order
-	url = git://github.com/bright4/radiant-drag-order.git
 [submodule "vendor/extensions/sitemap_xml"]
 	path = vendor/extensions/sitemap_xml
 	url = git://github.com/Aissac/radiant-sitemap-xml-extension.git
-[submodule "vendor/extensions/made_easy"]
-	path = vendor/extensions/made_easy
-	url = git://github.com/spanner/radiant-made_easy-extension.git
-[submodule "vendor/extensions/sns"]
-	path = vendor/extensions/sns
-	url = git://github.com/SwankInnovations/radiant-sns-extension.git
-[submodule "vendor/extensions/sns_sass_filter"]
-	path = vendor/extensions/sns_sass_filter
-	url = git://github.com/spanner/radiant-sns-sass-filter-extension.git
-[submodule "vendor/extensions/sns_multisite"]
-	path = vendor/extensions/sns_multisite
-	url = git://github.com/spanner/radiant-sns-multisite-extension.git
 [submodule "vendor/extensions/sass_grid"]
 	path = vendor/extensions/sass_grid
 	url = git://github.com/spanner/radiant-sass_grid-extension.git

@@ -4872,3 +4872,3549 @@ Element.ClassNames.prototype = {
 Object.extend(Element.ClassNames.prototype, Enumerable);
 
 /*--------------------------------------------------------------------------*/
+
+// script.aculo.us effects.js v1.8.0, Tue Nov 06 15:01:40 +0300 2007
+
+// Copyright (c) 2005-2007 Thomas Fuchs (http://script.aculo.us, http://mir.aculo.us)
+// Contributors:
+//  Justin Palmer (http://encytemedia.com/)
+//  Mark Pilgrim (http://diveintomark.org/)
+//  Martin Bialasinki
+// 
+// script.aculo.us is freely distributable under the terms of an MIT-style license.
+// For details, see the script.aculo.us web site: http://script.aculo.us/ 
+
+// converts rgb() and #xxx to #xxxxxx format,  
+// returns self (or first argument) if not convertable  
+String.prototype.parseColor = function() {  
+  var color = '#';
+  if (this.slice(0,4) == 'rgb(') {  
+    var cols = this.slice(4,this.length-1).split(',');  
+    var i=0; do { color += parseInt(cols[i]).toColorPart() } while (++i<3);  
+  } else {  
+    if (this.slice(0,1) == '#') {  
+      if (this.length==4) for(var i=1;i<4;i++) color += (this.charAt(i) + this.charAt(i)).toLowerCase();  
+      if (this.length==7) color = this.toLowerCase();  
+    }  
+  }  
+  return (color.length==7 ? color : (arguments[0] || this));  
+};
+
+/*--------------------------------------------------------------------------*/
+
+Element.collectTextNodes = function(element) {  
+  return $A($(element).childNodes).collect( function(node) {
+    return (node.nodeType==3 ? node.nodeValue : 
+      (node.hasChildNodes() ? Element.collectTextNodes(node) : ''));
+  }).flatten().join('');
+};
+
+Element.collectTextNodesIgnoreClass = function(element, className) {  
+  return $A($(element).childNodes).collect( function(node) {
+    return (node.nodeType==3 ? node.nodeValue : 
+      ((node.hasChildNodes() && !Element.hasClassName(node,className)) ? 
+        Element.collectTextNodesIgnoreClass(node, className) : ''));
+  }).flatten().join('');
+};
+
+Element.setContentZoom = function(element, percent) {
+  element = $(element);  
+  element.setStyle({fontSize: (percent/100) + 'em'});   
+  if (Prototype.Browser.WebKit) window.scrollBy(0,0);
+  return element;
+};
+
+Element.getInlineOpacity = function(element){
+  return $(element).style.opacity || '';
+};
+
+Element.forceRerendering = function(element) {
+  try {
+    element = $(element);
+    var n = document.createTextNode(' ');
+    element.appendChild(n);
+    element.removeChild(n);
+  } catch(e) { }
+};
+
+/*--------------------------------------------------------------------------*/
+
+var Effect = {
+  _elementDoesNotExistError: {
+    name: 'ElementDoesNotExistError',
+    message: 'The specified DOM element does not exist, but is required for this effect to operate'
+  },
+  Transitions: {
+    linear: Prototype.K,
+    sinoidal: function(pos) {
+      return (-Math.cos(pos*Math.PI)/2) + 0.5;
+    },
+    reverse: function(pos) {
+      return 1-pos;
+    },
+    flicker: function(pos) {
+      var pos = ((-Math.cos(pos*Math.PI)/4) + 0.75) + Math.random()/4;
+      return pos > 1 ? 1 : pos;
+    },
+    wobble: function(pos) {
+      return (-Math.cos(pos*Math.PI*(9*pos))/2) + 0.5;
+    },
+    pulse: function(pos, pulses) { 
+      pulses = pulses || 5; 
+      return (
+        ((pos % (1/pulses)) * pulses).round() == 0 ? 
+              ((pos * pulses * 2) - (pos * pulses * 2).floor()) : 
+          1 - ((pos * pulses * 2) - (pos * pulses * 2).floor())
+        );
+    },
+    spring: function(pos) { 
+      return 1 - (Math.cos(pos * 4.5 * Math.PI) * Math.exp(-pos * 6)); 
+    },
+    none: function(pos) {
+      return 0;
+    },
+    full: function(pos) {
+      return 1;
+    }
+  },
+  DefaultOptions: {
+    duration:   1.0,   // seconds
+    fps:        100,   // 100= assume 66fps max.
+    sync:       false, // true for combining
+    from:       0.0,
+    to:         1.0,
+    delay:      0.0,
+    queue:      'parallel'
+  },
+  tagifyText: function(element) {
+    var tagifyStyle = 'position:relative';
+    if (Prototype.Browser.IE) tagifyStyle += ';zoom:1';
+    
+    element = $(element);
+    $A(element.childNodes).each( function(child) {
+      if (child.nodeType==3) {
+        child.nodeValue.toArray().each( function(character) {
+          element.insertBefore(
+            new Element('span', {style: tagifyStyle}).update(
+              character == ' ' ? String.fromCharCode(160) : character), 
+              child);
+        });
+        Element.remove(child);
+      }
+    });
+  },
+  multiple: function(element, effect) {
+    var elements;
+    if (((typeof element == 'object') || 
+        Object.isFunction(element)) && 
+       (element.length))
+      elements = element;
+    else
+      elements = $(element).childNodes;
+      
+    var options = Object.extend({
+      speed: 0.1,
+      delay: 0.0
+    }, arguments[2] || { });
+    var masterDelay = options.delay;
+
+    $A(elements).each( function(element, index) {
+      new effect(element, Object.extend(options, { delay: index * options.speed + masterDelay }));
+    });
+  },
+  PAIRS: {
+    'slide':  ['SlideDown','SlideUp'],
+    'blind':  ['BlindDown','BlindUp'],
+    'appear': ['Appear','Fade']
+  },
+  toggle: function(element, effect) {
+    element = $(element);
+    effect = (effect || 'appear').toLowerCase();
+    var options = Object.extend({
+      queue: { position:'end', scope:(element.id || 'global'), limit: 1 }
+    }, arguments[2] || { });
+    Effect[element.visible() ? 
+      Effect.PAIRS[effect][1] : Effect.PAIRS[effect][0]](element, options);
+  }
+};
+
+Effect.DefaultOptions.transition = Effect.Transitions.sinoidal;
+
+/* ------------- core effects ------------- */
+
+Effect.ScopedQueue = Class.create(Enumerable, {
+  initialize: function() {
+    this.effects  = [];
+    this.interval = null;    
+  },
+  _each: function(iterator) {
+    this.effects._each(iterator);
+  },
+  add: function(effect) {
+    var timestamp = new Date().getTime();
+    
+    var position = Object.isString(effect.options.queue) ? 
+      effect.options.queue : effect.options.queue.position;
+    
+    switch(position) {
+      case 'front':
+        // move unstarted effects after this effect  
+        this.effects.findAll(function(e){ return e.state=='idle' }).each( function(e) {
+            e.startOn  += effect.finishOn;
+            e.finishOn += effect.finishOn;
+          });
+        break;
+      case 'with-last':
+        timestamp = this.effects.pluck('startOn').max() || timestamp;
+        break;
+      case 'end':
+        // start effect after last queued effect has finished
+        timestamp = this.effects.pluck('finishOn').max() || timestamp;
+        break;
+    }
+    
+    effect.startOn  += timestamp;
+    effect.finishOn += timestamp;
+
+    if (!effect.options.queue.limit || (this.effects.length < effect.options.queue.limit))
+      this.effects.push(effect);
+    
+    if (!this.interval)
+      this.interval = setInterval(this.loop.bind(this), 15);
+  },
+  remove: function(effect) {
+    this.effects = this.effects.reject(function(e) { return e==effect });
+    if (this.effects.length == 0) {
+      clearInterval(this.interval);
+      this.interval = null;
+    }
+  },
+  loop: function() {
+    var timePos = new Date().getTime();
+    for(var i=0, len=this.effects.length;i<len;i++) 
+      this.effects[i] && this.effects[i].loop(timePos);
+  }
+});
+
+Effect.Queues = {
+  instances: $H(),
+  get: function(queueName) {
+    if (!Object.isString(queueName)) return queueName;
+    
+    return this.instances.get(queueName) ||
+      this.instances.set(queueName, new Effect.ScopedQueue());
+  }
+};
+Effect.Queue = Effect.Queues.get('global');
+
+Effect.Base = Class.create({
+  position: null,
+  start: function(options) {
+    function codeForEvent(options,eventName){
+      return (
+        (options[eventName+'Internal'] ? 'this.options.'+eventName+'Internal(this);' : '') +
+        (options[eventName] ? 'this.options.'+eventName+'(this);' : '')
+      );
+    }
+    if (options && options.transition === false) options.transition = Effect.Transitions.linear;
+    this.options      = Object.extend(Object.extend({ },Effect.DefaultOptions), options || { });
+    this.currentFrame = 0;
+    this.state        = 'idle';
+    this.startOn      = this.options.delay*1000;
+    this.finishOn     = this.startOn+(this.options.duration*1000);
+    this.fromToDelta  = this.options.to-this.options.from;
+    this.totalTime    = this.finishOn-this.startOn;
+    this.totalFrames  = this.options.fps*this.options.duration;
+    
+    eval('this.render = function(pos){ '+
+      'if (this.state=="idle"){this.state="running";'+
+      codeForEvent(this.options,'beforeSetup')+
+      (this.setup ? 'this.setup();':'')+ 
+      codeForEvent(this.options,'afterSetup')+
+      '};if (this.state=="running"){'+
+      'pos=this.options.transition(pos)*'+this.fromToDelta+'+'+this.options.from+';'+
+      'this.position=pos;'+
+      codeForEvent(this.options,'beforeUpdate')+
+      (this.update ? 'this.update(pos);':'')+
+      codeForEvent(this.options,'afterUpdate')+
+      '}}');
+    
+    this.event('beforeStart');
+    if (!this.options.sync)
+      Effect.Queues.get(Object.isString(this.options.queue) ? 
+        'global' : this.options.queue.scope).add(this);
+  },
+  loop: function(timePos) {
+    if (timePos >= this.startOn) {
+      if (timePos >= this.finishOn) {
+        this.render(1.0);
+        this.cancel();
+        this.event('beforeFinish');
+        if (this.finish) this.finish(); 
+        this.event('afterFinish');
+        return;  
+      }
+      var pos   = (timePos - this.startOn) / this.totalTime,
+          frame = (pos * this.totalFrames).round();
+      if (frame > this.currentFrame) {
+        this.render(pos);
+        this.currentFrame = frame;
+      }
+    }
+  },
+  cancel: function() {
+    if (!this.options.sync)
+      Effect.Queues.get(Object.isString(this.options.queue) ? 
+        'global' : this.options.queue.scope).remove(this);
+    this.state = 'finished';
+  },
+  event: function(eventName) {
+    if (this.options[eventName + 'Internal']) this.options[eventName + 'Internal'](this);
+    if (this.options[eventName]) this.options[eventName](this);
+  },
+  inspect: function() {
+    var data = $H();
+    for(property in this)
+      if (!Object.isFunction(this[property])) data.set(property, this[property]);
+    return '#<Effect:' + data.inspect() + ',options:' + $H(this.options).inspect() + '>';
+  }
+});
+
+Effect.Parallel = Class.create(Effect.Base, {
+  initialize: function(effects) {
+    this.effects = effects || [];
+    this.start(arguments[1]);
+  },
+  update: function(position) {
+    this.effects.invoke('render', position);
+  },
+  finish: function(position) {
+    this.effects.each( function(effect) {
+      effect.render(1.0);
+      effect.cancel();
+      effect.event('beforeFinish');
+      if (effect.finish) effect.finish(position);
+      effect.event('afterFinish');
+    });
+  }
+});
+
+Effect.Tween = Class.create(Effect.Base, {
+  initialize: function(object, from, to) {
+    object = Object.isString(object) ? $(object) : object;
+    var args = $A(arguments), method = args.last(), 
+      options = args.length == 5 ? args[3] : null;
+    this.method = Object.isFunction(method) ? method.bind(object) :
+      Object.isFunction(object[method]) ? object[method].bind(object) : 
+      function(value) { object[method] = value };
+    this.start(Object.extend({ from: from, to: to }, options || { }));
+  },
+  update: function(position) {
+    this.method(position);
+  }
+});
+
+Effect.Event = Class.create(Effect.Base, {
+  initialize: function() {
+    this.start(Object.extend({ duration: 0 }, arguments[0] || { }));
+  },
+  update: Prototype.emptyFunction
+});
+
+Effect.Opacity = Class.create(Effect.Base, {
+  initialize: function(element) {
+    this.element = $(element);
+    if (!this.element) throw(Effect._elementDoesNotExistError);
+    // make this work on IE on elements without 'layout'
+    if (Prototype.Browser.IE && (!this.element.currentStyle.hasLayout))
+      this.element.setStyle({zoom: 1});
+    var options = Object.extend({
+      from: this.element.getOpacity() || 0.0,
+      to:   1.0
+    }, arguments[1] || { });
+    this.start(options);
+  },
+  update: function(position) {
+    this.element.setOpacity(position);
+  }
+});
+
+Effect.Move = Class.create(Effect.Base, {
+  initialize: function(element) {
+    this.element = $(element);
+    if (!this.element) throw(Effect._elementDoesNotExistError);
+    var options = Object.extend({
+      x:    0,
+      y:    0,
+      mode: 'relative'
+    }, arguments[1] || { });
+    this.start(options);
+  },
+  setup: function() {
+    this.element.makePositioned();
+    this.originalLeft = parseFloat(this.element.getStyle('left') || '0');
+    this.originalTop  = parseFloat(this.element.getStyle('top')  || '0');
+    if (this.options.mode == 'absolute') {
+      this.options.x = this.options.x - this.originalLeft;
+      this.options.y = this.options.y - this.originalTop;
+    }
+  },
+  update: function(position) {
+    this.element.setStyle({
+      left: (this.options.x  * position + this.originalLeft).round() + 'px',
+      top:  (this.options.y  * position + this.originalTop).round()  + 'px'
+    });
+  }
+});
+
+// for backwards compatibility
+Effect.MoveBy = function(element, toTop, toLeft) {
+  return new Effect.Move(element, 
+    Object.extend({ x: toLeft, y: toTop }, arguments[3] || { }));
+};
+
+Effect.Scale = Class.create(Effect.Base, {
+  initialize: function(element, percent) {
+    this.element = $(element);
+    if (!this.element) throw(Effect._elementDoesNotExistError);
+    var options = Object.extend({
+      scaleX: true,
+      scaleY: true,
+      scaleContent: true,
+      scaleFromCenter: false,
+      scaleMode: 'box',        // 'box' or 'contents' or { } with provided values
+      scaleFrom: 100.0,
+      scaleTo:   percent
+    }, arguments[2] || { });
+    this.start(options);
+  },
+  setup: function() {
+    this.restoreAfterFinish = this.options.restoreAfterFinish || false;
+    this.elementPositioning = this.element.getStyle('position');
+    
+    this.originalStyle = { };
+    ['top','left','width','height','fontSize'].each( function(k) {
+      this.originalStyle[k] = this.element.style[k];
+    }.bind(this));
+      
+    this.originalTop  = this.element.offsetTop;
+    this.originalLeft = this.element.offsetLeft;
+    
+    var fontSize = this.element.getStyle('font-size') || '100%';
+    ['em','px','%','pt'].each( function(fontSizeType) {
+      if (fontSize.indexOf(fontSizeType)>0) {
+        this.fontSize     = parseFloat(fontSize);
+        this.fontSizeType = fontSizeType;
+      }
+    }.bind(this));
+    
+    this.factor = (this.options.scaleTo - this.options.scaleFrom)/100;
+    
+    this.dims = null;
+    if (this.options.scaleMode=='box')
+      this.dims = [this.element.offsetHeight, this.element.offsetWidth];
+    if (/^content/.test(this.options.scaleMode))
+      this.dims = [this.element.scrollHeight, this.element.scrollWidth];
+    if (!this.dims)
+      this.dims = [this.options.scaleMode.originalHeight,
+                   this.options.scaleMode.originalWidth];
+  },
+  update: function(position) {
+    var currentScale = (this.options.scaleFrom/100.0) + (this.factor * position);
+    if (this.options.scaleContent && this.fontSize)
+      this.element.setStyle({fontSize: this.fontSize * currentScale + this.fontSizeType });
+    this.setDimensions(this.dims[0] * currentScale, this.dims[1] * currentScale);
+  },
+  finish: function(position) {
+    if (this.restoreAfterFinish) this.element.setStyle(this.originalStyle);
+  },
+  setDimensions: function(height, width) {
+    var d = { };
+    if (this.options.scaleX) d.width = width.round() + 'px';
+    if (this.options.scaleY) d.height = height.round() + 'px';
+    if (this.options.scaleFromCenter) {
+      var topd  = (height - this.dims[0])/2;
+      var leftd = (width  - this.dims[1])/2;
+      if (this.elementPositioning == 'absolute') {
+        if (this.options.scaleY) d.top = this.originalTop-topd + 'px';
+        if (this.options.scaleX) d.left = this.originalLeft-leftd + 'px';
+      } else {
+        if (this.options.scaleY) d.top = -topd + 'px';
+        if (this.options.scaleX) d.left = -leftd + 'px';
+      }
+    }
+    this.element.setStyle(d);
+  }
+});
+
+Effect.Highlight = Class.create(Effect.Base, {
+  initialize: function(element) {
+    this.element = $(element);
+    if (!this.element) throw(Effect._elementDoesNotExistError);
+    var options = Object.extend({ startcolor: '#ffff99' }, arguments[1] || { });
+    this.start(options);
+  },
+  setup: function() {
+    // Prevent executing on elements not in the layout flow
+    if (this.element.getStyle('display')=='none') { this.cancel(); return; }
+    // Disable background image during the effect
+    this.oldStyle = { };
+    if (!this.options.keepBackgroundImage) {
+      this.oldStyle.backgroundImage = this.element.getStyle('background-image');
+      this.element.setStyle({backgroundImage: 'none'});
+    }
+    if (!this.options.endcolor)
+      this.options.endcolor = this.element.getStyle('background-color').parseColor('#ffffff');
+    if (!this.options.restorecolor)
+      this.options.restorecolor = this.element.getStyle('background-color');
+    // init color calculations
+    this._base  = $R(0,2).map(function(i){ return parseInt(this.options.startcolor.slice(i*2+1,i*2+3),16) }.bind(this));
+    this._delta = $R(0,2).map(function(i){ return parseInt(this.options.endcolor.slice(i*2+1,i*2+3),16)-this._base[i] }.bind(this));
+  },
+  update: function(position) {
+    this.element.setStyle({backgroundColor: $R(0,2).inject('#',function(m,v,i){
+      return m+((this._base[i]+(this._delta[i]*position)).round().toColorPart()); }.bind(this)) });
+  },
+  finish: function() {
+    this.element.setStyle(Object.extend(this.oldStyle, {
+      backgroundColor: this.options.restorecolor
+    }));
+  }
+});
+
+Effect.ScrollTo = function(element) {
+  var options = arguments[1] || { },
+    scrollOffsets = document.viewport.getScrollOffsets(),
+    elementOffsets = $(element).cumulativeOffset(),
+    max = (window.height || document.body.scrollHeight) - document.viewport.getHeight();  
+
+  if (options.offset) elementOffsets[1] += options.offset;
+
+  return new Effect.Tween(null,
+    scrollOffsets.top,
+    elementOffsets[1] > max ? max : elementOffsets[1],
+    options,
+    function(p){ scrollTo(scrollOffsets.left, p.round()) }
+  );
+};
+
+/* ------------- combination effects ------------- */
+
+Effect.Fade = function(element) {
+  element = $(element);
+  var oldOpacity = element.getInlineOpacity();
+  var options = Object.extend({
+    from: element.getOpacity() || 1.0,
+    to:   0.0,
+    afterFinishInternal: function(effect) { 
+      if (effect.options.to!=0) return;
+      effect.element.hide().setStyle({opacity: oldOpacity}); 
+    }
+  }, arguments[1] || { });
+  return new Effect.Opacity(element,options);
+};
+
+Effect.Appear = function(element) {
+  element = $(element);
+  var options = Object.extend({
+  from: (element.getStyle('display') == 'none' ? 0.0 : element.getOpacity() || 0.0),
+  to:   1.0,
+  // force Safari to render floated elements properly
+  afterFinishInternal: function(effect) {
+    effect.element.forceRerendering();
+  },
+  beforeSetup: function(effect) {
+    effect.element.setOpacity(effect.options.from).show(); 
+  }}, arguments[1] || { });
+  return new Effect.Opacity(element,options);
+};
+
+Effect.Puff = function(element) {
+  element = $(element);
+  var oldStyle = { 
+    opacity: element.getInlineOpacity(), 
+    position: element.getStyle('position'),
+    top:  element.style.top,
+    left: element.style.left,
+    width: element.style.width,
+    height: element.style.height
+  };
+  return new Effect.Parallel(
+   [ new Effect.Scale(element, 200, 
+      { sync: true, scaleFromCenter: true, scaleContent: true, restoreAfterFinish: true }), 
+     new Effect.Opacity(element, { sync: true, to: 0.0 } ) ], 
+     Object.extend({ duration: 1.0, 
+      beforeSetupInternal: function(effect) {
+        Position.absolutize(effect.effects[0].element)
+      },
+      afterFinishInternal: function(effect) {
+         effect.effects[0].element.hide().setStyle(oldStyle); }
+     }, arguments[1] || { })
+   );
+};
+
+Effect.BlindUp = function(element) {
+  element = $(element);
+  element.makeClipping();
+  return new Effect.Scale(element, 0,
+    Object.extend({ scaleContent: false, 
+      scaleX: false, 
+      restoreAfterFinish: true,
+      afterFinishInternal: function(effect) {
+        effect.element.hide().undoClipping();
+      } 
+    }, arguments[1] || { })
+  );
+};
+
+Effect.BlindDown = function(element) {
+  element = $(element);
+  var elementDimensions = element.getDimensions();
+  return new Effect.Scale(element, 100, Object.extend({ 
+    scaleContent: false, 
+    scaleX: false,
+    scaleFrom: 0,
+    scaleMode: {originalHeight: elementDimensions.height, originalWidth: elementDimensions.width},
+    restoreAfterFinish: true,
+    afterSetup: function(effect) {
+      effect.element.makeClipping().setStyle({height: '0px'}).show(); 
+    },  
+    afterFinishInternal: function(effect) {
+      effect.element.undoClipping();
+    }
+  }, arguments[1] || { }));
+};
+
+Effect.SwitchOff = function(element) {
+  element = $(element);
+  var oldOpacity = element.getInlineOpacity();
+  return new Effect.Appear(element, Object.extend({
+    duration: 0.4,
+    from: 0,
+    transition: Effect.Transitions.flicker,
+    afterFinishInternal: function(effect) {
+      new Effect.Scale(effect.element, 1, { 
+        duration: 0.3, scaleFromCenter: true,
+        scaleX: false, scaleContent: false, restoreAfterFinish: true,
+        beforeSetup: function(effect) { 
+          effect.element.makePositioned().makeClipping();
+        },
+        afterFinishInternal: function(effect) {
+          effect.element.hide().undoClipping().undoPositioned().setStyle({opacity: oldOpacity});
+        }
+      })
+    }
+  }, arguments[1] || { }));
+};
+
+Effect.DropOut = function(element) {
+  element = $(element);
+  var oldStyle = {
+    top: element.getStyle('top'),
+    left: element.getStyle('left'),
+    opacity: element.getInlineOpacity() };
+  return new Effect.Parallel(
+    [ new Effect.Move(element, {x: 0, y: 100, sync: true }), 
+      new Effect.Opacity(element, { sync: true, to: 0.0 }) ],
+    Object.extend(
+      { duration: 0.5,
+        beforeSetup: function(effect) {
+          effect.effects[0].element.makePositioned(); 
+        },
+        afterFinishInternal: function(effect) {
+          effect.effects[0].element.hide().undoPositioned().setStyle(oldStyle);
+        } 
+      }, arguments[1] || { }));
+};
+
+Effect.Shake = function(element) {
+  element = $(element);
+  var options = Object.extend({
+    distance: 20,
+    duration: 0.5
+  }, arguments[1] || {});
+  var distance = parseFloat(options.distance);
+  var split = parseFloat(options.duration) / 10.0;
+  var oldStyle = {
+    top: element.getStyle('top'),
+    left: element.getStyle('left') };
+    return new Effect.Move(element,
+      { x:  distance, y: 0, duration: split, afterFinishInternal: function(effect) {
+    new Effect.Move(effect.element,
+      { x: -distance*2, y: 0, duration: split*2,  afterFinishInternal: function(effect) {
+    new Effect.Move(effect.element,
+      { x:  distance*2, y: 0, duration: split*2,  afterFinishInternal: function(effect) {
+    new Effect.Move(effect.element,
+      { x: -distance*2, y: 0, duration: split*2,  afterFinishInternal: function(effect) {
+    new Effect.Move(effect.element,
+      { x:  distance*2, y: 0, duration: split*2,  afterFinishInternal: function(effect) {
+    new Effect.Move(effect.element,
+      { x: -distance, y: 0, duration: split, afterFinishInternal: function(effect) {
+        effect.element.undoPositioned().setStyle(oldStyle);
+  }}) }}) }}) }}) }}) }});
+};
+
+Effect.SlideDown = function(element) {
+  element = $(element).cleanWhitespace();
+  // SlideDown need to have the content of the element wrapped in a container element with fixed height!
+  var oldInnerBottom = element.down().getStyle('bottom');
+  var elementDimensions = element.getDimensions();
+  return new Effect.Scale(element, 100, Object.extend({ 
+    scaleContent: false, 
+    scaleX: false, 
+    scaleFrom: window.opera ? 0 : 1,
+    scaleMode: {originalHeight: elementDimensions.height, originalWidth: elementDimensions.width},
+    restoreAfterFinish: true,
+    afterSetup: function(effect) {
+      effect.element.makePositioned();
+      effect.element.down().makePositioned();
+      if (window.opera) effect.element.setStyle({top: ''});
+      effect.element.makeClipping().setStyle({height: '0px'}).show(); 
+    },
+    afterUpdateInternal: function(effect) {
+      effect.element.down().setStyle({bottom:
+        (effect.dims[0] - effect.element.clientHeight) + 'px' }); 
+    },
+    afterFinishInternal: function(effect) {
+      effect.element.undoClipping().undoPositioned();
+      effect.element.down().undoPositioned().setStyle({bottom: oldInnerBottom}); }
+    }, arguments[1] || { })
+  );
+};
+
+Effect.SlideUp = function(element) {
+  element = $(element).cleanWhitespace();
+  var oldInnerBottom = element.down().getStyle('bottom');
+  var elementDimensions = element.getDimensions();
+  return new Effect.Scale(element, window.opera ? 0 : 1,
+   Object.extend({ scaleContent: false, 
+    scaleX: false, 
+    scaleMode: 'box',
+    scaleFrom: 100,
+    scaleMode: {originalHeight: elementDimensions.height, originalWidth: elementDimensions.width},
+    restoreAfterFinish: true,
+    afterSetup: function(effect) {
+      effect.element.makePositioned();
+      effect.element.down().makePositioned();
+      if (window.opera) effect.element.setStyle({top: ''});
+      effect.element.makeClipping().show();
+    },  
+    afterUpdateInternal: function(effect) {
+      effect.element.down().setStyle({bottom:
+        (effect.dims[0] - effect.element.clientHeight) + 'px' });
+    },
+    afterFinishInternal: function(effect) {
+      effect.element.hide().undoClipping().undoPositioned();
+      effect.element.down().undoPositioned().setStyle({bottom: oldInnerBottom});
+    }
+   }, arguments[1] || { })
+  );
+};
+
+// Bug in opera makes the TD containing this element expand for a instance after finish 
+Effect.Squish = function(element) {
+  return new Effect.Scale(element, window.opera ? 1 : 0, { 
+    restoreAfterFinish: true,
+    beforeSetup: function(effect) {
+      effect.element.makeClipping(); 
+    },  
+    afterFinishInternal: function(effect) {
+      effect.element.hide().undoClipping(); 
+    }
+  });
+};
+
+Effect.Grow = function(element) {
+  element = $(element);
+  var options = Object.extend({
+    direction: 'center',
+    moveTransition: Effect.Transitions.sinoidal,
+    scaleTransition: Effect.Transitions.sinoidal,
+    opacityTransition: Effect.Transitions.full
+  }, arguments[1] || { });
+  var oldStyle = {
+    top: element.style.top,
+    left: element.style.left,
+    height: element.style.height,
+    width: element.style.width,
+    opacity: element.getInlineOpacity() };
+
+  var dims = element.getDimensions();    
+  var initialMoveX, initialMoveY;
+  var moveX, moveY;
+  
+  switch (options.direction) {
+    case 'top-left':
+      initialMoveX = initialMoveY = moveX = moveY = 0; 
+      break;
+    case 'top-right':
+      initialMoveX = dims.width;
+      initialMoveY = moveY = 0;
+      moveX = -dims.width;
+      break;
+    case 'bottom-left':
+      initialMoveX = moveX = 0;
+      initialMoveY = dims.height;
+      moveY = -dims.height;
+      break;
+    case 'bottom-right':
+      initialMoveX = dims.width;
+      initialMoveY = dims.height;
+      moveX = -dims.width;
+      moveY = -dims.height;
+      break;
+    case 'center':
+      initialMoveX = dims.width / 2;
+      initialMoveY = dims.height / 2;
+      moveX = -dims.width / 2;
+      moveY = -dims.height / 2;
+      break;
+  }
+  
+  return new Effect.Move(element, {
+    x: initialMoveX,
+    y: initialMoveY,
+    duration: 0.01, 
+    beforeSetup: function(effect) {
+      effect.element.hide().makeClipping().makePositioned();
+    },
+    afterFinishInternal: function(effect) {
+      new Effect.Parallel(
+        [ new Effect.Opacity(effect.element, { sync: true, to: 1.0, from: 0.0, transition: options.opacityTransition }),
+          new Effect.Move(effect.element, { x: moveX, y: moveY, sync: true, transition: options.moveTransition }),
+          new Effect.Scale(effect.element, 100, {
+            scaleMode: { originalHeight: dims.height, originalWidth: dims.width }, 
+            sync: true, scaleFrom: window.opera ? 1 : 0, transition: options.scaleTransition, restoreAfterFinish: true})
+        ], Object.extend({
+             beforeSetup: function(effect) {
+               effect.effects[0].element.setStyle({height: '0px'}).show(); 
+             },
+             afterFinishInternal: function(effect) {
+               effect.effects[0].element.undoClipping().undoPositioned().setStyle(oldStyle); 
+             }
+           }, options)
+      )
+    }
+  });
+};
+
+Effect.Shrink = function(element) {
+  element = $(element);
+  var options = Object.extend({
+    direction: 'center',
+    moveTransition: Effect.Transitions.sinoidal,
+    scaleTransition: Effect.Transitions.sinoidal,
+    opacityTransition: Effect.Transitions.none
+  }, arguments[1] || { });
+  var oldStyle = {
+    top: element.style.top,
+    left: element.style.left,
+    height: element.style.height,
+    width: element.style.width,
+    opacity: element.getInlineOpacity() };
+
+  var dims = element.getDimensions();
+  var moveX, moveY;
+  
+  switch (options.direction) {
+    case 'top-left':
+      moveX = moveY = 0;
+      break;
+    case 'top-right':
+      moveX = dims.width;
+      moveY = 0;
+      break;
+    case 'bottom-left':
+      moveX = 0;
+      moveY = dims.height;
+      break;
+    case 'bottom-right':
+      moveX = dims.width;
+      moveY = dims.height;
+      break;
+    case 'center':  
+      moveX = dims.width / 2;
+      moveY = dims.height / 2;
+      break;
+  }
+  
+  return new Effect.Parallel(
+    [ new Effect.Opacity(element, { sync: true, to: 0.0, from: 1.0, transition: options.opacityTransition }),
+      new Effect.Scale(element, window.opera ? 1 : 0, { sync: true, transition: options.scaleTransition, restoreAfterFinish: true}),
+      new Effect.Move(element, { x: moveX, y: moveY, sync: true, transition: options.moveTransition })
+    ], Object.extend({            
+         beforeStartInternal: function(effect) {
+           effect.effects[0].element.makePositioned().makeClipping(); 
+         },
+         afterFinishInternal: function(effect) {
+           effect.effects[0].element.hide().undoClipping().undoPositioned().setStyle(oldStyle); }
+       }, options)
+  );
+};
+
+Effect.Pulsate = function(element) {
+  element = $(element);
+  var options    = arguments[1] || { };
+  var oldOpacity = element.getInlineOpacity();
+  var transition = options.transition || Effect.Transitions.sinoidal;
+  var reverser   = function(pos){ return transition(1-Effect.Transitions.pulse(pos, options.pulses)) };
+  reverser.bind(transition);
+  return new Effect.Opacity(element, 
+    Object.extend(Object.extend({  duration: 2.0, from: 0,
+      afterFinishInternal: function(effect) { effect.element.setStyle({opacity: oldOpacity}); }
+    }, options), {transition: reverser}));
+};
+
+Effect.Fold = function(element) {
+  element = $(element);
+  var oldStyle = {
+    top: element.style.top,
+    left: element.style.left,
+    width: element.style.width,
+    height: element.style.height };
+  element.makeClipping();
+  return new Effect.Scale(element, 5, Object.extend({   
+    scaleContent: false,
+    scaleX: false,
+    afterFinishInternal: function(effect) {
+    new Effect.Scale(element, 1, { 
+      scaleContent: false, 
+      scaleY: false,
+      afterFinishInternal: function(effect) {
+        effect.element.hide().undoClipping().setStyle(oldStyle);
+      } });
+  }}, arguments[1] || { }));
+};
+
+Effect.Morph = Class.create(Effect.Base, {
+  initialize: function(element) {
+    this.element = $(element);
+    if (!this.element) throw(Effect._elementDoesNotExistError);
+    var options = Object.extend({
+      style: { }
+    }, arguments[1] || { });
+    
+    if (!Object.isString(options.style)) this.style = $H(options.style);
+    else {
+      if (options.style.include(':'))
+        this.style = options.style.parseStyle();
+      else {
+        this.element.addClassName(options.style);
+        this.style = $H(this.element.getStyles());
+        this.element.removeClassName(options.style);
+        var css = this.element.getStyles();
+        this.style = this.style.reject(function(style) {
+          return style.value == css[style.key];
+        });
+        options.afterFinishInternal = function(effect) {
+          effect.element.addClassName(effect.options.style);
+          effect.transforms.each(function(transform) {
+            effect.element.style[transform.style] = '';
+          });
+        }
+      }
+    }
+    this.start(options);
+  },
+  
+  setup: function(){
+    function parseColor(color){
+      if (!color || ['rgba(0, 0, 0, 0)','transparent'].include(color)) color = '#ffffff';
+      color = color.parseColor();
+      return $R(0,2).map(function(i){
+        return parseInt( color.slice(i*2+1,i*2+3), 16 ) 
+      });
+    }
+    this.transforms = this.style.map(function(pair){
+      var property = pair[0], value = pair[1], unit = null;
+
+      if (value.parseColor('#zzzzzz') != '#zzzzzz') {
+        value = value.parseColor();
+        unit  = 'color';
+      } else if (property == 'opacity') {
+        value = parseFloat(value);
+        if (Prototype.Browser.IE && (!this.element.currentStyle.hasLayout))
+          this.element.setStyle({zoom: 1});
+      } else if (Element.CSS_LENGTH.test(value)) {
+          var components = value.match(/^([\+\-]?[0-9\.]+)(.*)$/);
+          value = parseFloat(components[1]);
+          unit = (components.length == 3) ? components[2] : null;
+      }
+
+      var originalValue = this.element.getStyle(property);
+      return { 
+        style: property.camelize(), 
+        originalValue: unit=='color' ? parseColor(originalValue) : parseFloat(originalValue || 0), 
+        targetValue: unit=='color' ? parseColor(value) : value,
+        unit: unit
+      };
+    }.bind(this)).reject(function(transform){
+      return (
+        (transform.originalValue == transform.targetValue) ||
+        (
+          transform.unit != 'color' &&
+          (isNaN(transform.originalValue) || isNaN(transform.targetValue))
+        )
+      )
+    });
+  },
+  update: function(position) {
+    var style = { }, transform, i = this.transforms.length;
+    while(i--)
+      style[(transform = this.transforms[i]).style] = 
+        transform.unit=='color' ? '#'+
+          (Math.round(transform.originalValue[0]+
+            (transform.targetValue[0]-transform.originalValue[0])*position)).toColorPart() +
+          (Math.round(transform.originalValue[1]+
+            (transform.targetValue[1]-transform.originalValue[1])*position)).toColorPart() +
+          (Math.round(transform.originalValue[2]+
+            (transform.targetValue[2]-transform.originalValue[2])*position)).toColorPart() :
+        (transform.originalValue +
+          (transform.targetValue - transform.originalValue) * position).toFixed(3) + 
+            (transform.unit === null ? '' : transform.unit);
+    this.element.setStyle(style, true);
+  }
+});
+
+Effect.Transform = Class.create({
+  initialize: function(tracks){
+    this.tracks  = [];
+    this.options = arguments[1] || { };
+    this.addTracks(tracks);
+  },
+  addTracks: function(tracks){
+    tracks.each(function(track){
+      track = $H(track);
+      var data = track.values().first();
+      this.tracks.push($H({
+        ids:     track.keys().first(),
+        effect:  Effect.Morph,
+        options: { style: data }
+      }));
+    }.bind(this));
+    return this;
+  },
+  play: function(){
+    return new Effect.Parallel(
+      this.tracks.map(function(track){
+        var ids = track.get('ids'), effect = track.get('effect'), options = track.get('options');
+        var elements = [$(ids) || $$(ids)].flatten();
+        return elements.map(function(e){ return new effect(e, Object.extend({ sync:true }, options)) });
+      }).flatten(),
+      this.options
+    );
+  }
+});
+
+Element.CSS_PROPERTIES = $w(
+  'backgroundColor backgroundPosition borderBottomColor borderBottomStyle ' + 
+  'borderBottomWidth borderLeftColor borderLeftStyle borderLeftWidth ' +
+  'borderRightColor borderRightStyle borderRightWidth borderSpacing ' +
+  'borderTopColor borderTopStyle borderTopWidth bottom clip color ' +
+  'fontSize fontWeight height left letterSpacing lineHeight ' +
+  'marginBottom marginLeft marginRight marginTop markerOffset maxHeight '+
+  'maxWidth minHeight minWidth opacity outlineColor outlineOffset ' +
+  'outlineWidth paddingBottom paddingLeft paddingRight paddingTop ' +
+  'right textIndent top width wordSpacing zIndex');
+  
+Element.CSS_LENGTH = /^(([\+\-]?[0-9\.]+)(em|ex|px|in|cm|mm|pt|pc|\%))|0$/;
+
+String.__parseStyleElement = document.createElement('div');
+String.prototype.parseStyle = function(){
+  var style, styleRules = $H();
+  if (Prototype.Browser.WebKit)
+    style = new Element('div',{style:this}).style;
+  else {
+    String.__parseStyleElement.innerHTML = '<div style="' + this + '"></div>';
+    style = String.__parseStyleElement.childNodes[0].style;
+  }
+  
+  Element.CSS_PROPERTIES.each(function(property){
+    if (style[property]) styleRules.set(property, style[property]); 
+  });
+  
+  if (Prototype.Browser.IE && this.include('opacity'))
+    styleRules.set('opacity', this.match(/opacity:\s*((?:0|1)?(?:\.\d*)?)/)[1]);
+
+  return styleRules;
+};
+
+if (document.defaultView && document.defaultView.getComputedStyle) {
+  Element.getStyles = function(element) {
+    var css = document.defaultView.getComputedStyle($(element), null);
+    return Element.CSS_PROPERTIES.inject({ }, function(styles, property) {
+      styles[property] = css[property];
+      return styles;
+    });
+  };
+} else {
+  Element.getStyles = function(element) {
+    element = $(element);
+    var css = element.currentStyle, styles;
+    styles = Element.CSS_PROPERTIES.inject({ }, function(hash, property) {
+      hash.set(property, css[property]);
+      return hash;
+    });
+    if (!styles.opacity) styles.set('opacity', element.getOpacity());
+    return styles;
+  };
+};
+
+Effect.Methods = {
+  morph: function(element, style) {
+    element = $(element);
+    new Effect.Morph(element, Object.extend({ style: style }, arguments[2] || { }));
+    return element;
+  },
+  visualEffect: function(element, effect, options) {
+    element = $(element)
+    var s = effect.dasherize().camelize(), klass = s.charAt(0).toUpperCase() + s.substring(1);
+    new Effect[klass](element, options);
+    return element;
+  },
+  highlight: function(element, options) {
+    element = $(element);
+    new Effect.Highlight(element, options);
+    return element;
+  }
+};
+
+$w('fade appear grow shrink fold blindUp blindDown slideUp slideDown '+
+  'pulsate shake puff squish switchOff dropOut').each(
+  function(effect) { 
+    Effect.Methods[effect] = function(element, options){
+      element = $(element);
+      Effect[effect.charAt(0).toUpperCase() + effect.substring(1)](element, options);
+      return element;
+    }
+  }
+);
+
+$w('getInlineOpacity forceRerendering setContentZoom collectTextNodes collectTextNodesIgnoreClass getStyles').each( 
+  function(f) { Effect.Methods[f] = Element[f]; }
+);
+
+Element.addMethods(Effect.Methods);
+
+
+LowPro = {};
+LowPro.Version = '0.5';
+LowPro.CompatibleWithPrototype = '1.6';
+
+if (Prototype.Version.indexOf(LowPro.CompatibleWithPrototype) != 0 && window.console && window.console.warn)
+  console.warn("This version of Low Pro is tested with Prototype " + LowPro.CompatibleWithPrototype + 
+                  " it may not work as expected with this version (" + Prototype.Version + ")");
+
+if (!Element.addMethods) 
+  Element.addMethods = function(o) { Object.extend(Element.Methods, o) };
+
+// Simple utility methods for working with the DOM
+DOM = {};
+
+// DOMBuilder for prototype
+DOM.Builder = {
+	tagFunc : function(tag) {
+    return function() {
+     var attrs, children;
+     if (arguments.length>0) {
+       if (arguments[0].constructor == Object) {
+         attrs = arguments[0];
+         children = Array.prototype.slice.call(arguments, 1);
+       } else {
+         children = arguments;
+       };
+       children = $A(children).flatten()
+     }
+     return DOM.Builder.create(tag, attrs, children);
+    };
+  },
+	create : function(tag, attrs, children) {
+		attrs = attrs || {}; children = children || []; tag = tag.toLowerCase();
+		var el = new Element(tag, attrs);
+	  
+		for (var i=0; i<children.length; i++) {
+			if (typeof children[i] == 'string') 
+			  children[i] = document.createTextNode(children[i]);
+			el.appendChild(children[i]);
+		}
+		return $(el);
+	}
+};
+
+// Automatically create node builders as $tagName.
+(function() { 
+	var els = ("p|div|span|strong|em|img|table|tr|td|th|thead|tbody|tfoot|pre|code|" + 
+				     "h1|h2|h3|h4|h5|h6|ul|ol|li|form|input|textarea|legend|fieldset|" + 
+				     "select|option|blockquote|cite|br|hr|dd|dl|dt|address|a|button|abbr|acronym|" +
+				     "script|link|style|bdo|ins|del|object|param|col|colgroup|optgroup|caption|" + 
+				     "label|dfn|kbd|samp|var").split("|");
+  var el, i=0;
+	while (el = els[i++]) 
+	  window['$' + el] = DOM.Builder.tagFunc(el);
+})();
+
+DOM.Builder.fromHTML = function(html) {
+  var root;
+  if (!(root = arguments.callee._root))
+    root = arguments.callee._root = document.createElement('div');
+  root.innerHTML = html;
+  return root.childNodes[0];
+};
+
+
+
+// Wraps the 1.6 contentloaded event for backwards compatibility
+//
+// Usage:
+//
+// Event.onReady(callbackFunction);
+Object.extend(Event, {
+  onReady : function(f) {
+    if (document.body) f();
+    else document.observe('dom:loaded', f);
+  }
+});
+
+// Based on event:Selectors by Justin Palmer
+// http://encytemedia.com/event-selectors/
+//
+// Usage:
+//
+// Event.addBehavior({
+//      "selector:event" : function(event) { /* event handler.  this refers to the element. */ },
+//      "selector" : function() { /* runs function on dom ready.  this refers to the element. */ }
+//      ...
+// });
+//
+// Multiple calls will add to exisiting rules.  Event.addBehavior.reassignAfterAjax and
+// Event.addBehavior.autoTrigger can be adjusted to needs.
+Event.addBehavior = function(rules) {
+  var ab = this.addBehavior;
+  Object.extend(ab.rules, rules);
+  
+  if (!ab.responderApplied) {
+    Ajax.Responders.register({
+      onComplete : function() { 
+        if (Event.addBehavior.reassignAfterAjax) 
+          setTimeout(function() { ab.reload() }, 10);
+      }
+    });
+    ab.responderApplied = true;
+  }
+  
+  if (ab.autoTrigger) {
+    this.onReady(ab.load.bind(ab, rules));
+  }
+  
+};
+
+Event.delegate = function(rules) {
+  return function(e) {
+		for ( var selector in rules ){
+			if ( e.findElement(selector) ) {
+				return rules[selector].apply(this, $A(arguments));
+			}
+		}        
+	}
+}
+
+Object.extend(Event.addBehavior, {
+  rules : {}, cache : [],
+  reassignAfterAjax : false,
+  autoTrigger : true,
+  
+  load : function(rules) {
+    for (var selector in rules) {
+      var observer = rules[selector];
+      var sels = selector.split(',');
+      sels.each(function(sel) {
+        var parts = sel.split(/:(?=[a-z]+$)/), css = parts[0], event = parts[1];
+        $$(css).each(function(element) {
+          if (event) {
+            var wrappedObserver = Event.addBehavior._wrapObserver(observer);
+            $(element).observe(event, wrappedObserver);
+            Event.addBehavior.cache.push([element, event, wrappedObserver]);
+          } else {
+            if (!element.$$assigned || !element.$$assigned.include(observer)) {
+              if (observer.attach) observer.attach(element);
+              
+              else observer.call($(element));
+              element.$$assigned = element.$$assigned || [];
+              element.$$assigned.push(observer);
+            }
+          }
+        });
+      });
+    }
+  },
+  
+  unload : function() {
+    this.cache.each(function(c) {
+      Event.stopObserving.apply(Event, c);
+    });
+    this.cache = [];
+  },
+  
+  reload: function() {
+    var ab = Event.addBehavior;
+    ab.unload(); 
+    ab.load(ab.rules);
+  },
+  
+  _wrapObserver: function(observer) {
+    return function(event) {
+      if (observer.call(this, event) === false) event.stop(); 
+    }
+  }
+  
+});
+
+Event.observe(window, 'unload', Event.addBehavior.unload.bind(Event.addBehavior));
+
+// A silly Prototype style shortcut for the reckless
+$$$ = Event.addBehavior.bind(Event);
+
+// Behaviors can be bound to elements to provide an object orientated way of controlling elements
+// and their behavior.  Use Behavior.create() to make a new behavior class then use attach() to
+// glue it to an element.  Each element then gets it's own instance of the behavior and any
+// methods called onxxx are bound to the relevent event.
+// 
+// Usage:
+// 
+// var MyBehavior = Behavior.create({
+//   onmouseover : function() { this.element.addClassName('bong') } 
+// });
+//
+// Event.addBehavior({ 'a.rollover' : MyBehavior });
+// 
+// If you need to pass additional values to initialize use:
+//
+// Event.addBehavior({ 'a.rollover' : MyBehavior(10, { thing : 15 }) })
+//
+// You can also use the attach() method.  If you specify extra arguments to attach they get passed to initialize.
+//
+// MyBehavior.attach(el, values, to, init);
+//
+// Finally, the rawest method is using the new constructor normally:
+// var draggable = new Draggable(element, init, vals);
+//
+// Each behaviour has a collection of all its instances in Behavior.instances
+//
+var Behavior = {
+  create: function() {
+    var parent = null, properties = $A(arguments);
+    if (Object.isFunction(properties[0]))
+      parent = properties.shift();
+
+      var behavior = function() { 
+        if (!this.initialize) {
+          var args = $A(arguments);
+
+          return function() {
+            var initArgs = [this].concat(args);
+            behavior.attach.apply(behavior, initArgs);
+          };
+        } else {
+          var args = (arguments.length == 2 && arguments[1] instanceof Array) ? 
+                      arguments[1] : Array.prototype.slice.call(arguments, 1);
+
+          this.element = $(arguments[0]);
+          this.initialize.apply(this, args);
+          behavior._bindEvents(this);
+          behavior.instances.push(this);
+        }
+      };
+
+    Object.extend(behavior, Class.Methods);
+    Object.extend(behavior, Behavior.Methods);
+    behavior.superclass = parent;
+    behavior.subclasses = [];
+    behavior.instances = [];
+
+    if (parent) {
+      var subclass = function() { };
+      subclass.prototype = parent.prototype;
+      behavior.prototype = new subclass;
+      parent.subclasses.push(behavior);
+    }
+
+    for (var i = 0; i < properties.length; i++)
+      behavior.addMethods(properties[i]);
+
+    if (!behavior.prototype.initialize)
+      behavior.prototype.initialize = Prototype.emptyFunction;
+
+    behavior.prototype.constructor = behavior;
+
+    return behavior;
+  },
+  Methods : {
+    attach : function(element) {
+      return new this(element, Array.prototype.slice.call(arguments, 1));
+    },
+    _bindEvents : function(bound) {
+      for (var member in bound) {
+        var matches = member.match(/^on(.+)/);
+        if (matches && typeof bound[member] == 'function')
+          bound.element.observe(matches[1], Event.addBehavior._wrapObserver(bound[member].bindAsEventListener(bound)));
+      }
+    }
+  }
+};
+
+
+
+Remote = Behavior.create({
+  initialize: function(options) {
+    if (this.element.nodeName == 'FORM') new Remote.Form(this.element, options);
+    else new Remote.Link(this.element, options);
+  }
+});
+
+Remote.Base = {
+  initialize : function(options) {
+    this.options = Object.extend({
+      evaluateScripts : true
+    }, options || {});
+    
+    this._bindCallbacks();
+  },
+  _makeRequest : function(options) {
+    if (options.update) new Ajax.Updater(options.update, options.url, options);
+    else new Ajax.Request(options.url, options);
+    return false;
+  },
+  _bindCallbacks: function() {
+    $w('onCreate onComplete onException onFailure onInteractive onLoading onLoaded onSuccess').each(function(cb) {
+      if (Object.isFunction(this.options[cb]))
+        this.options[cb] = this.options[cb].bind(this);
+    }.bind(this));
+  }
+}
+
+Remote.Link = Behavior.create(Remote.Base, {
+  onclick : function() {
+    var options = Object.extend({ url : this.element.href, method : 'get' }, this.options);
+    return this._makeRequest(options);
+  }
+});
+
+
+Remote.Form = Behavior.create(Remote.Base, {
+  onclick : function(e) {
+    var sourceElement = e.element();
+    
+    if (['input', 'button'].include(sourceElement.nodeName.toLowerCase()) && 
+        ['submit', 'image'].include(sourceElement.type))
+      this._submitButton = sourceElement;
+  },
+  onsubmit : function() {
+    var options = Object.extend({
+      url : this.element.action,
+      method : this.element.method || 'get',
+      parameters : this.element.serialize({ submit: this._submitButton.name })
+    }, this.options);
+    this._submitButton = null;
+    return this._makeRequest(options);
+  }
+});
+
+Observed = Behavior.create({
+  initialize : function(callback, options) {
+    this.callback = callback.bind(this);
+    this.options = options || {};
+    this.observer = (this.element.nodeName == 'FORM') ? this._observeForm() : this._observeField();
+  },
+  stop: function() {
+    this.observer.stop();
+  },
+  _observeForm: function() {
+    return (this.options.frequency) ? new Form.Observer(this.element, this.options.frequency, this.callback) :
+                                      new Form.EventObserver(this.element, this.callback);
+  },
+  _observeField: function() {
+    return (this.options.frequency) ? new Form.Element.Observer(this.element, this.options.frequency, this.callback) :
+                                      new Form.Element.EventObserver(this.element, this.callback);
+  }
+});
+
+
+/*
+ * dateinput.js
+ * 
+ * dependencies: prototype.js, lowpro.js
+ * 
+ * --------------------------------------------------------------------------
+ * 
+ * Renders a date input. To use, add the following line to application.js:
+ * 
+ *   Event.addBehavior({'input.date': DateInputBehavior()});
+ * 
+ * This will effectively wire all inputs with a class of "date" to the
+ * DateInputBehavior.
+ * 
+ * This code was originally based on Dan Web's code for date_selector.js, but
+ * has been modified from its original form. You can find Dan's original
+ * code here:
+ * 
+ * http://github.com/danwrong/low-pro/blob/master/behaviours/date_selector.js
+ * 
+ * --------------------------------------------------------------------------
+ * 
+ * Copyright (c) 2007-2009, Five Points Solutions, Inc.
+ * Portions Copyright (c) 2004, Dan Web
+ * 
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ * 
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+ * DEALINGS IN THE SOFTWARE.
+ *
+ */
+
+DateInputBehavior = Behavior.create({
+  
+  initialize: function(options) {
+    this.element.setAttribute("autocomplete", "off");
+    this.calendar = null;
+    this.options = Object.extend(DateInputBehavior.DEFAULTS, options || {});
+    this.date = this.getDate();
+    this._createCalendar();
+  },
+  
+  setDate: function(value, hideCalendar) {
+    this.date = value;
+    this.element.value = this.options.setter(this.date);
+    var timeoutTime = 250;
+    if (Prototype.Browser.IE) timeoutTime = 50;
+    
+    if (hideCalendar == null) hideCalendar = true;
+    
+    if (hideCalendar && this.calendar) {
+      setTimeout(function() {
+        this.calendar.element.hide();
+        this.element.select();
+      }.bind(this), timeoutTime);
+    }
+    this.element.fire('date:changed');
+  },
+  
+  _createCalendar : function() {
+    var calendar = $div({'class': 'calendar_popup'});
+    var body = $(document.getElementsByTagName('body')[0]);
+    body.insert(calendar);
+    calendar.setStyle('position: absolute');
+    this.calendar = new DateInputBehavior.Calendar(calendar, this);
+  },
+  
+  onclick : function(event) {
+    if (this._isOverWidget(event)) {
+      this.calendar.toggle();
+      event.stop();
+    }
+  },
+  
+  onmouseover: function(event) {
+    if (this._isOverWidget(event)) this.element.setStyle("cursor: pointer");
+    else this.element.setStyle("cursor: text");
+  },
+  
+  onmouseout: function(event) {
+    if (this._isOverWidget(event)) this.element.setStyle("cursor: text");
+    else this.element.setStyle("cursor: pointer");
+  },
+  
+  onmousemove: function(event) {
+    this.onmouseover(event);
+  },
+  
+  onkeypress: function(event) {
+    switch(event.keyCode) {
+      case Event.KEY_UP:
+      case 38:
+      case Event.KEY_DOWN:
+      case 63233:
+      case 40:
+        this.calendar.toggle();
+        event.stop();
+        break;
+      case Event.KEY_ESC:
+        this.calendar.hide();
+        break;
+      case Event.KEY_TAB:
+        this.calendar.hide();
+        event.stop();
+        var formElements = this.element.up('form').getElements();
+        var elementIndex = formElements.indexOf(this.element) + 1;
+        if (formElements.length > elementIndex) formElements[elementIndex].focus();
+        break;
+    }
+  },
+  
+  onkeydown: function(event) {
+    if (Prototype.Browser.IE) this.onkeypress(event);
+    if (Prototype.Browser.WebKit && (event.keyCode == 40 || event.keyCode == 38)){
+      this.onkeypress(event);
+    }
+  },
+  
+  getDate : function() {
+    return this.options.getter(this.element.value) || new Date;
+  },
+  
+  _isOverWidget: function(event) {
+    var positionedOverWidget = null;
+    if (Prototype.Browser.IE) {
+      var widgetLeft = this.element.cumulativeOffset().left;
+      var widgetRight = this.element.cumulativeOffset().left + this.element.getDimensions().width;
+      positionedOverWidget = (event.pointerX() >= widgetLeft && event.pointerX() <= widgetRight);
+    } else {
+      var calendarIconWidth = parseInt(this.element.getStyle('padding-right'));
+      var widgetLeft = this.element.cumulativeOffset().left + this.element.getDimensions().width - calendarIconWidth;
+      positionedOverWidget = (event.pointerX() >= widgetLeft);
+    }
+    return positionedOverWidget;
+  }
+});
+
+DateInputBehavior.Calendar = Behavior.create({
+  
+  initialize: function(selector) {
+    this.selector = selector;
+    this.element.hide();
+    Event.observe(document, 'click', this.element.hide.bind(this.element));
+  },
+  
+  show: function() {
+    DateInputBehavior.Calendar.instances.invoke('hide');
+    this.date = this.selector.getDate();
+    this.redraw();
+    this.element.setStyle({
+      'top': this.getVerticalOffset(this.selector.element) + 'px',
+      'left': Math.max(this.selector.element.cumulativeOffset().left + this.selector.element.getWidth() - this.element.getWidth() - 4, this.selector.element.cumulativeOffset().left) + 'px',
+      'z-index': 10001
+    });
+    this.element.show();
+    this.active = true;
+  },
+  
+  getVerticalOffset: function(selector){
+    var defaultOffset = this.selector.element.cumulativeOffset().top + this.selector.element.getHeight() + 2;
+    var height = this.element.getHeight();
+    var top = 0;
+    
+    if(document.viewport.getHeight() > defaultOffset + height) {
+      top = defaultOffset;
+    } else {
+      top = (defaultOffset - height - selector.getHeight() - 6);
+    }
+    
+    if (top < document.viewport.getScrollOffsets().top)
+      top = document.viewport.getScrollOffsets().top;
+    
+    return top;
+  },
+  
+  hide: function() {
+    this.element.hide();
+    this.active = false;
+  },
+  
+  toggle: function() {
+    if (this.element.visible()) {
+      this.hide();
+    } else {
+      this.show()
+    }
+  },
+  
+  redraw: function() {
+    var oldMonth = this.element.down('select.month');
+    if (oldMonth) Event.stopObserving(oldMonth, 'change', oldMonth._monthChanged);
+    
+    var oldYear = this.element.down('select.year');
+    if (oldYear) Event.stopObserving(oldYear, 'change', oldYear._yearChanged);
+    
+    var html = '<table class="calendar" border="0" cellpadding="0" cellspacing="0">' +
+               '  <thead>' +
+               '    <tr class="month_year_navigation">' + 
+               '      <th class="back"><a href="#">&larr;</a></th>' +
+               '      <th colspan="5" class="month_year">' + this._monthYear() + '</th>' +
+               '      <th class="forward"><a href="#">&rarr;</a></th>' +
+               '    </tr>' +
+               '    <tr class="day_header">' + this._dayRows() + '</tr>' +
+               '  </thead>' +
+               '  <tbody>' +
+               this._buildDateCells() +
+               '</tbody></table>';
+    this.element.innerHTML = '';
+    var table = DOM.Builder.fromHTML(html);
+    this.element.insert(table);
+    
+    var newMonth = this.element.down('select.month');
+    newMonth._monthChanged = this._monthChanged.bindAsEventListener(this);
+    Event.observe(newMonth, 'change', newMonth._monthChanged);
+    
+    var newYear = this.element.down('select.year');
+    newYear._yearChanged = this._yearChanged.bindAsEventListener(this);
+    Event.observe(newYear, 'change', newYear._yearChanged);
+  },
+  
+  onclick: function(event) {
+    event.stop();
+    if ($(event.target.parentNode).hasClassName('day')) return this._setDate(event.target);
+    if ($(event.target.parentNode).hasClassName('back')) return this._backMonth();
+    if ($(event.target.parentNode).hasClassName('forward')) return this._forwardMonth();
+  },
+  
+  _monthChanged: function(event) {
+    event.stop();
+    return this._selectMonth(event.target);
+  },
+  
+  _yearChanged: function(event) {
+    event.stop();
+    return this._selectYear(event.target);
+  },
+  
+  _setDate: function(source) {
+    if (source.innerHTML.strip() != '') {
+      this.date.setDate(parseInt(source.innerHTML));
+      this.selector.setDate(this.date);
+      $A(this.element.getElementsByClassName('selected')).invoke('removeClassName', 'selected');
+      source.parentNode.addClassName('selected');
+    }
+  },
+  
+  _backMonth: function() {
+    this.date.setMonth(this.date.getMonth() - 1);
+    this.redraw();
+    return false;
+  },
+  
+  _forwardMonth: function() {
+    this.date.setMonth(this.date.getMonth() + 1);
+    this.redraw();
+    return false;
+  },
+  
+  _selectMonth: function(combo) {
+    this.date.setMonth(combo.selectedIndex);
+    this.selector.setDate(this.date, false);
+    this.redraw();
+    return false;
+  },
+  
+  _selectYear: function(combo) {
+    var year = parseInt($F(combo))
+    this.date.setYear(year);
+    this.selector.setDate(this.date, false);
+    this.redraw();
+    return false;
+  },
+  
+  _getDateFromSelector: function() {
+    this.date = new Date(this.selector.date.getTime());
+  },
+  
+  _firstDay: function(month, year) {
+    return new Date(year, month, 1).getDay();
+  },
+  
+  _monthLength: function(month, year) {
+    var length = DateInputBehavior.Calendar.MONTHS[month].days;
+    return (month == 1 && (year % 4 == 0) && ((year % 100 != 0) || (year % 400 == 0))) ? 29 : length;
+  },
+  
+  _monthYear: function() {
+    var currentMonth = this.date.getMonth();
+    var currentYear = this.date.getFullYear();
+    var todaysYear = (new Date()).getFullYear();
+    var html = '';
+    html += '<select class="month">';
+    DateInputBehavior.Calendar.MONTHS.each(function(month, index) {
+      if (index == currentMonth)  {
+        html += '<option selected="selected">' + month.label + '</option>';
+      } else {
+        html += '<option>' + month.label + '</option>';
+      }
+    });
+    html += '</select>';
+    if (!(Prototype.Browser.WebKit || Prototype.Browser.MobileSafari)) html += ' ';
+    html += '<select class="year">';
+    for (var index = todaysYear - 100; index < todaysYear + 50; index++) {
+      if (index == currentYear) {
+        html += '<option selected="selected">' + index + '</option>';
+      } else {
+        html += '<option>' + index + '</option>';
+      }
+    }
+    html += '</select>';
+    return html;
+  },
+  
+  _dayRows: function() {
+    for (var i = 0, html='', day; day = DateInputBehavior.Calendar.DAYS[i]; i++)
+      html += '<th>' + day + '</th>';
+    return html;
+  },
+  
+  _buildDateCells: function() {
+    var month = this.date.getMonth(), year = this.date.getFullYear();
+    var day = 1, monthLength = this._monthLength(month, year), firstDay = this._firstDay(month, year);
+    var html = '<tr>';
+    
+    for (var i = 0; i < 9; i++) {
+      for (var j = 0; j <= 6; j++) {
+        
+        if (day <= monthLength && (i > 0 || j >= firstDay)) { 
+          var classes = ['day'];
+          
+          if (this._compareDate(new Date, year, month, day)) classes.push('today');
+          if (this._compareDate(this.selector.date, year, month, day)) classes.push('selected');
+          
+          html += '<td class="' + classes.join(' ') + '">' + 
+                  '<a href="#">' + day++ + '</a>' + 
+                  '</td>';
+        } else html += '<td></td>';
+      }
+      
+      if (day > monthLength) break;
+      else html += '</tr><tr>';
+    }
+    
+    return html + '</tr>';
+  },
+  
+  _compareDate: function(date, year, month, day) {
+    return date.getFullYear() == year &&
+           date.getMonth() == month &&
+           date.getDate() == day;
+  }
+});
+
+DateInputBehavior.DEFAULTS = {
+  
+  setter: function(date) {
+    return  DateInputBehavior.Calendar.MONTHS[date.getMonth()].label +
+      ' ' + date.getDate() + ', ' + date.getFullYear();
+  },
+  
+  getter: function(value) {
+    var parsed = Date.parse(value);
+    
+    if (!isNaN(parsed)) return new Date(parsed);
+    else return null;
+  }
+  
+};
+
+Object.extend(DateInputBehavior.Calendar, {
+  
+  DAYS : $w('S M T W T F S'),
+  
+  MONTHS : [
+    { label: 'January',   days: 31 },
+    { label: 'February',  days: 28 },
+    { label: 'March',     days: 31 },
+    { label: 'April',     days: 30 },
+    { label: 'May',       days: 31 },
+    { label: 'June',      days: 30 },
+    { label: 'July',      days: 31 },
+    { label: 'August',    days: 31 },
+    { label: 'September', days: 30 },
+    { label: 'October',   days: 31 },
+    { label: 'November',  days: 30 },
+    { label: 'December',  days: 31 }
+  ]
+  
+});
+
+PageStatusBehavior = Behavior.create({
+  initialize: function(options){
+    this.update();
+  },
+  
+  onchange: function(event) {
+    this.update();
+  },
+  
+  update: function() {
+    if(this.element.value >= 90) { 
+      $('published_at').show();
+    } else { 
+      $('published_at').hide();
+    }
+  }
+});
+
+/*
+  cookie.js
+  
+  Copyright (c) 2007, 2008 Maxime Haineault
+  (http://www.haineault.com/code/cookie-js/, http://code.google.com/p/cookie-js/)
+  
+  Portions Copyright (c) 2008, John W. Long
+  
+  Permission is hereby granted, free of charge, to any person obtaining
+  a copy of this software and associated documentation files (the
+  "Software"), to deal in the Software without restriction, including
+  without limitation the rights to use, copy, modify, merge, publish,
+  distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to
+  the following conditions:
+  
+  The above copyright notice and this permission notice shall be
+  included in all copies or substantial portions of the Software.
+  
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+  LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+  OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+  WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+*/
+
+Cookie = {  
+  get: function(name) {
+    // Still not sure that "[a-zA-Z0-9.()=|%/]+($|;)" match *all* allowed characters in cookies
+    tmp =  document.cookie.match((new RegExp(name +'=[a-zA-Z0-9.()=|%/]+($|;)','g')));
+    if (!tmp || !tmp[0]) {
+      return null;
+    } else {
+      return unescape(tmp[0].substring(name.length + 1, tmp[0].length).replace(';', '')) || null;
+    }
+  },  
+  
+  set: function(name, value, expireInHours, path, domain, secure) {
+    var cookie = [
+      name + '=' + escape(value),
+      'path=' + ((!path || path == '')  ? '/' : path)
+    ];
+    if (Cookie._notEmpty(domain)) cookie.push('domain=' + domain);
+    if (Cookie._notEmpty(expireInHours)) cookie.push(Cookie._hoursToExpireDate(expireInHours));
+    if (Cookie._notEmpty(secure)) cookie.push('secure');
+    return document.cookie = cookie.join(';');
+  },
+  
+  erase: function(name, path, domain) {
+    path = (!path || typeof path != 'string') ? '' : path;
+    domain = (!domain || typeof domain != 'string') ? '' : domain;
+    if (Cookie.get(name)) Cookie.set(name, '', 'Thu, 01-Jan-70 00:00:01 GMT', path, domain);
+  },
+  
+  // Returns true if cookies are enabled
+  accept: function() {
+    Cookie.set('b49f729efde9b2578ea9f00563d06e57', 'true');
+    if (Cookie.get('b49f729efde9b2578ea9f00563d06e57') == 'true') {
+      Cookie.erase('b49f729efde9b2578ea9f00563d06e57');
+      return true;
+    }
+    return false;
+  },
+  
+  _notEmpty: function(value) {
+    return (typeof value != 'undefined' && value != null && value != '');
+  },
+  
+  // Private function for calculating the date of expiration based on hours
+  _hoursToExpireDate: function(hours) {
+    if (parseInt(hours) == 'NaN' ) return '';
+    else {
+      now = new Date();
+      now.setTime(now.getTime() + (parseInt(hours) * 60 * 60 * 1000));
+      return now.toGMTString();     
+    }
+  }
+}
+
+
+/*
+ *  popup.js
+ *
+ *  dependencies: prototype.js, effects.js, lowpro.js
+ *
+ *  --------------------------------------------------------------------------
+ *  
+ *  Allows you to open up a URL inside of a Facebook-style window. To use
+ *  simply assign the class "popup" to a link that contains an href to the
+ *  HTML snippet that you would like to load up inside a window:
+ *  
+ *    <a class="popup" href="window.html">Window</a>
+ *
+ *  You can also "popup" a specific div by referencing it by ID:
+ *
+ *    <a class="popup" href="#my_div">Popup</a>
+ *    <div id="my_div" style="display:none">Hello World!</div>
+ *  
+ *  You will need to install the following hook:
+ *  
+ *    Event.addBehavior({'a.popup': Popup.TriggerBehavior()});
+ *
+ *  --------------------------------------------------------------------------
+ *  
+ *  Copyright (c) 2008, John W. Long
+ *  Portions copyright (c) 2008, Five Points Solutions, Inc.
+ *  
+ *  Permission is hereby granted, free of charge, to any person obtaining a
+ *  copy of this software and associated documentation files (the "Software"),
+ *  to deal in the Software without restriction, including without limitation
+ *  the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ *  and/or sell copies of the Software, and to permit persons to whom the
+ *  Software is furnished to do so, subject to the following conditions:
+ *  
+ *  The above copyright notice and this permission notice shall be included in
+ *  all copies or substantial portions of the Software.
+ *  
+ *  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ *  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ *  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+ *  THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ *  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ *  FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+ *  DEALINGS IN THE SOFTWARE.
+ *  
+ */
+
+var Popup = {
+  BorderThickness: 8,
+  BorderImage: '/images/popup_border_background.png',
+  BorderTopLeftImage: '/images/popup_border_top_left.png',
+  BorderTopRightImage: '/images/popup_border_top_right.png',
+  BorderBottomLeftImage: '/images/popup_border_bottom_left.png',
+  BorderBottomRightImage: '/images/popup_border_bottom_right.png',
+  Windows: []
+};
+
+Popup.borderImages = function() {
+  return $A([
+    Popup.BorderImage,
+    Popup.BorderTopLeftImage,
+    Popup.BorderTopRightImage,
+    Popup.BorderBottomLeftImage,
+    Popup.BorderBottomRightImage
+  ]);
+}
+
+Popup.preloadImages = function() {
+  if (!Popup.imagesPreloaded) {
+    Popup.borderImages().each(function(src) {
+      var image = new Image();
+      image.src = src;
+    });
+    Popup.preloadedImages = true;
+  }
+}
+
+Popup.TriggerBehavior = Behavior.create({
+  initialize: function() {
+    if (!Popup.Windows[this.element.href]) {
+      var matches = this.element.href.match(/\#(.+)$/);
+      Popup.Windows[this.element.href] = (matches ? new Popup.Window($(matches[1])) : new Popup.AjaxWindow(this.element.href));
+    };
+    this.window = Popup.Windows[this.element.href];
+  },
+  
+  onclick: function(event) {
+    this.popup();
+    event.stop();
+  },
+  
+  popup: function() {
+    this.window.show();
+  }
+});
+
+Popup.AbstractWindow = Class.create({
+  initialize: function() {
+    Popup.preloadImages();
+    this.buildWindow();
+  },
+  
+  buildWindow: function() {
+    this.element = $div({'class': 'popup_window', style: 'display: none; padding: 0 ' + Popup.BorderThickness + 'px; position: absolute'});
+    
+    this.top = $div({style: 'background: url(' + Popup.BorderImage + '); height: ' + Popup.BorderThickness + 'px'});
+    this.element.insert(this.top);
+    
+    var outer = $div({style: 'background: url(' + Popup.BorderImage + '); margin: 0px -' + Popup.BorderThickness + 'px; padding: 0px ' + Popup.BorderThickness + 'px; position: relative'});
+    this.element.insert(outer);
+    
+    this.bottom = $div({style: 'background: url(' + Popup.BorderImage + '); height: ' + Popup.BorderThickness + 'px'});
+    this.element.insert(this.bottom);
+    
+    var topLeft = $div({style: 'background: url(' + Popup.BorderTopLeftImage + '); height: ' + Popup.BorderThickness + 'px; width: ' + Popup.BorderThickness + 'px; position: absolute; left: 0; top: -' + Popup.BorderThickness + 'px'});
+    outer.insert(topLeft);
+    
+    var topRight = $div({style: 'background: url(' + Popup.BorderTopRightImage + '); height: ' + Popup.BorderThickness + 'px; width: ' + Popup.BorderThickness + 'px; position: absolute; right: 0; top: -' + Popup.BorderThickness + 'px'});
+    outer.insert(topRight);
+    
+    var bottomLeft = $div({style: 'background: url(' + Popup.BorderBottomLeftImage + '); height: ' + Popup.BorderThickness + 'px; width: ' + Popup.BorderThickness + 'px; position: absolute; left: 0; bottom: -' + Popup.BorderThickness + 'px'});
+    outer.insert(bottomLeft);
+    
+    var bottomRight = $div({style: 'background: url(' + Popup.BorderBottomRightImage + '); height: ' + Popup.BorderThickness + 'px; width: ' + Popup.BorderThickness + 'px; position: absolute; right: 0; bottom: -' + Popup.BorderThickness + 'px'});
+    outer.insert(bottomRight);
+    
+    this.content = $div({style: 'background-color: white'});
+    outer.insert(this.content);
+    
+    var body = $$('body').first();
+    body.insert(this.element);
+  },
+  
+  show: function() {
+    this.beforeShow();
+    this.element.show();
+    this.afterShow();
+  },
+  
+  hide: function() {
+    this.element.hide();
+  },
+  
+  toggle: function() {
+    if (this.element.visible()) {
+      this.hide();
+    } else {
+      this.show();
+    }
+  },
+  
+  focus: function() {
+    var form = this.element.down('form');
+    if (form) {
+      var elements = form.getElements().reject(function(e) { return e.type == 'hidden' });
+      var element = elements[0] || form.down('button');
+      if (element) element.focus();
+    }
+  },
+  
+  beforeShow: function() {
+    if (Prototype.Browser.IE) {
+      // IE fixes
+      var width = this.element.getWidth() - (Popup.BorderThickness * 2);
+      this.top.setStyle("width:" + width + "px");
+      this.bottom.setStyle("width:" + width + "px");
+    }
+    this.centerWindowInView();
+  },
+  
+  afterShow: function() {
+    this.focus();
+  },
+
+  centerWindowInView: function() {
+    var offsets = document.viewport.getScrollOffsets();
+    this.element.setStyle({
+      left: parseInt(offsets.left + (document.viewport.getWidth() - this.element.getWidth()) / 2) + 'px',
+      top: parseInt(offsets.top + (document.viewport.getHeight() - this.element.getHeight()) / 2.2) + 'px'
+    });
+  }
+});
+
+Popup.Window = Class.create(Popup.AbstractWindow, {
+  initialize: function($super, element) {
+    $super();
+    element.remove();
+    this.content.update(element);
+    element.show();
+  }
+});
+
+Popup.AjaxWindow = Class.create(Popup.AbstractWindow, {
+  initialize: function($super, url, options) {
+    $super();
+    options = Object.extend({reload: true}, options);
+    this.url = url;
+    this.reload = options.reload;
+  },
+  
+  show: function($super) {
+    if (!this.loaded || this.reload) {
+      new Ajax.Updater(this.content, this.url, {asynchronous: false, method: "get", evalScripts: true, onComplete: $super});
+      this.loaded = true;
+    } else {
+      $super();
+    }
+  }
+});
+
+// Element extensions
+Element.addMethods({
+  closePopup: function(element) {
+    $(element).up('div.popup_window').hide();
+  }
+});
+
+function addField(form) {
+  if (validFieldName()) {
+    new Ajax.Updater(
+      $('attributes').down('tbody'),
+      '/admin/page_fields/',
+      {
+        asynchronous: true,
+        evalScripts: true,
+        insertion: 'bottom',
+        onComplete: function(response){ fieldAdded(form); },
+        onLoading: function(request){ fieldLoading(form); },
+        parameters: Form.serialize(form)
+      }
+    );
+  }
+}
+function removeField(button) {
+  var row = $(button).up('tr');
+  var name = row.down('label').innerHTML;
+  if (confirm('Remove the "' + name + '" field?')) {
+    row.down('.delete_input').setValue(true);
+    row.down('.page_field_name').clear();
+    row.hide();
+  }
+}
+function fieldAdded(element) {
+  $(element).previous('.busy').hide();
+  $(element).down('.button').enable();
+  $(element).up('.popup').closePopup();
+  var field_index = $('page_field_counter').value;
+  $('page_fields_attributes_' + field_index + '_content').focus();
+  $('page_field_counter').setValue(Number(field_index).succ());
+  $('new_page_field').reset();
+}
+function fieldLoading(element) {
+  $(element).down('.button').disable();
+  $(element).previous('.busy').appear();
+}
+function validFieldName() {
+  var fieldName = $('page_field_name');
+  var name = fieldName.value.downcase();
+  if (name.blank()) {
+    alert('Field name cannot be empty.');
+    return false;
+  }
+  if (findFieldByName(name)) {
+    alert('Field name must be unique.');
+    return false;
+  }
+  return true;
+}
+function findFieldByName(name) {
+  return $('attributes').select('input.page_field_name').detect(function(input) { return input.value.downcase() == name; });
+}
+
+/*
+ * status.js
+ * 
+ * dependencies: prototype.js, effects.js, lowpro.js
+ * 
+ * --------------------------------------------------------------------------
+ * 
+ * Allows you to display a status message when submiting a form. To use,
+ * simply add the following to application.js:
+ * 
+ *   Event.addBehavior({'form': Status.FormBehavior()});
+ * 
+ * And then add an "onsubmit_status" to each form that you want to display
+ * a status message on submit for:
+ * 
+ *   <form onsubmit_status="Saving changes" ...>
+ * 
+ * Some code taken from popup.js.
+ * 
+ * For more information, see:
+ * 
+ *   http://wiseheartdesign.com/articles/2009/12/16/statusjs-work-well-with-messages/
+ * 
+ * --------------------------------------------------------------------------
+ * 
+ * Copyright (c) 2008-2009, John W. Long
+ * Portions copyright (c) 2008, Five Points Solutions, Inc.
+ * 
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ * 
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+ * DEALINGS IN THE SOFTWARE.
+ *
+ */
+
+var Status = {
+  CornerThickness: 12,
+  SpinnerImage: '/images/status_spinner.gif',
+  SpinnerImageWidth: 32,
+  SpinnerImageHeight: 33,
+  BackgroundImage: '/images/status_background.png',
+  TopLeftImage: '/images/status_top_left.png',
+  TopRightImage: '/images/status_top_right.png',
+  BottomLeftImage: '/images/status_bottom_left.png',
+  BottomRightImage: '/images/status_bottom_right.png',
+  MessageFontFamily: '"Trebuchet MS", Verdana, Arial, Helvetica, sans-serif',
+  MessageFontSize: '14px',
+  MessageColor: '#e5e5e5',
+  Modal: false,
+  ModalOverlayColor: 'white',
+  ModalOverlayOpacity: 0.4
+};
+
+Status.window = function() {
+  if (!this.statusWindow) this.statusWindow = new Status.Window();
+  return this.statusWindow;
+}
+
+Status.BackgroundImages = function() {
+  return $A([
+    Status.SpinnerImage,
+    Status.BackgroundImage,
+    Status.TopLeftImage,
+    Status.TopRightImage,
+    Status.BottomLeftImage,
+    Status.BottomRightImage
+  ]);
+}
+
+Status.preloadImages = function() {
+  if (!Status.imagesPreloaded) {
+    Status.BackgroundImages().each(function(src) {
+      var image = new Image();
+      image.src = src;
+    });
+    Status.preloadedImages = true;
+  }
+}
+
+Status.FormBehavior = Behavior.create({
+  initialize: function() {
+    var attr = this.element.attributes['data-onsubmit_status']
+    if (attr) this.status = attr.value; 
+    if (this.status) this.element.observe('submit', function() { showStatus(this.status) }.bind(this));
+  }
+});
+
+Status.LinkBehavior = Behavior.create({
+  initialize: function() {
+    var attr = this.element.attributes['data-onclick_status']
+    if (attr) this.status = attr.value; 
+    if (this.status) this.element.observe('click', function() { showStatus(this.status) }.bind(this));
+  }
+});
+
+Status.Window = Class.create({
+  initialize: function() {
+    Status.preloadImages();
+    this.buildWindow();
+  },
+  
+  buildWindow: function() {
+    this.element = $table({'class': 'status_window', style: 'display: none; position: absolute; border-collapse: collapse; padding: 0px; margin: 0px; z-index: 10000'});
+    var tbody = $tbody();
+    this.element.insert(tbody)
+    
+    var top_row = $tr();
+    top_row.insert($td({style: 'background: url(' + Status.TopLeftImage + '); height: ' + Status.CornerThickness + 'px; width: ' + Status.CornerThickness + 'px; padding: 0px'}));
+    top_row.insert($td({style: 'background: url(' + Status.BackgroundImage + '); height: ' + Status.CornerThickness + 'px; padding: 0px'}))
+    top_row.insert($td({style: 'background: url(' + Status.TopRightImage + '); height: ' + Status.CornerThickness + 'px; width: ' + Status.CornerThickness + 'px; padding: 0px'}));
+    tbody.insert(top_row);
+    
+    var content_row = $tr();
+    content_row.insert($td({style: 'background: url(' + Status.BackgroundImage + '); width: ' + Status.CornerThickness + 'px; padding: 0px'}, ''));
+    this.content = $td({'class': 'status_content', style: 'background: url(' + Status.BackgroundImage + '); padding: 0px ' + Status.CornerThickness + 'px'});
+    content_row.insert(this.content);
+    content_row.insert($td({style: 'background: url(' + Status.BackgroundImage + '); width: ' + Status.CornerThickness + 'px; padding: 0px'}, ''));
+    tbody.insert(content_row);
+    
+    var bottom_row = $tr();
+    bottom_row.insert($td({style: 'background: url(' + Status.BottomLeftImage + '); height: ' + Status.CornerThickness + 'px; width: ' + Status.CornerThickness + 'px; padding: 0px'}));
+    bottom_row.insert($td({style: 'background: url(' + Status.BackgroundImage + '); height: ' + Status.CornerThickness + 'px; padding: 0px'}))
+    bottom_row.insert($td({style: 'background: url(' + Status.BottomRightImage + '); height: ' + Status.CornerThickness + 'px; width: ' + Status.CornerThickness + 'px; padding: 0px'}));
+    tbody.insert(bottom_row);
+    
+    this.spinner = $img({src: Status.SpinnerImage, width: Status.SpinnerImageWidth, height: Status.SpinnerImageHeight, alt: ''});
+    this.status = $div({'class': 'status_message', style: 'color: ' + Status.MessageColor + '; font-family: ' + Status.MessageFontFamily + '; font-size: ' + Status.MessageFontSize});
+    
+    var table = $table({border: 0, cellpadding: 0, cellspacing: 0, style: 'table-layout: auto'},
+      $tbody(
+        $tr(
+          $td({style: 'width: ' + Status.SpinnerImageWidth + 'px'}, this.spinner),
+          $td({style: 'padding-left: ' + Status.CornerThickness + 'px'}, this.status)
+        )
+      )
+    );
+    this.content.insert(table);
+    
+    var body = $$('body').first();
+    body.insert(this.element);
+  },
+  
+  setStatus: function(value) {
+    this.status.update(value)
+  },
+  
+  getStatus: function() {
+    return this.status.innerHTML();
+  },
+  
+  show: function(modal) {
+    this.centerWindowInView();
+    if (modal || Status.Modal) this._showModalOverlay();
+    this.element.show();
+  },
+  
+  hide: function() {
+    this._hideModalOverlay();
+    this.element.hide();
+  },
+  
+  toggle: function() {
+    if (this.visible()) {
+      this.hide();
+    } else {
+      this.show();
+    }
+  },
+  
+  visible: function() {
+    return this.element.visible();
+  },
+  
+  centerWindowInView: function() {
+    var offsets = document.viewport.getScrollOffsets();
+    this.element.setStyle({
+      left: parseInt(offsets.left + (document.viewport.getWidth() - this.element.getWidth()) / 2) + 'px',
+      top: parseInt(offsets.top + (document.viewport.getHeight() - this.element.getHeight()) / 2.2) + 'px'
+    });
+  },
+  
+  _showModalOverlay: function() {
+    if (!this.overlay) {
+      this.overlay = $div({style: 'position: absolute; background-color: ' + Status.ModalOverlayColor + '; top: 0px; left: 0px; z-index: 100;'});
+      this.overlay.setStyle('position: fixed');
+      this.overlay.setOpacity(Status.ModalOverlayOpacity);
+      document.body.insert(this.overlay);
+    }
+    this.overlay.setStyle('height: ' + document.viewport.getHeight() + 'px; width: ' + document.viewport.getWidth() + 'px;');
+    this.overlay.show();
+  },
+  
+  _hideModalOverlay: function() {
+    if (this.overlay) this.overlay.hide();
+  }
+});
+
+Event.observe(document, 'dom:loaded', function() {
+  Status.preloadImages();
+});
+
+// Sets the status to string
+function setStatus(string) {
+  Status.window().setStatus(string);
+  if (Status.window().visible()) Status.window().centerWindowInView();
+}
+
+// Sets the status to string and shows the status window. If modal is passed
+// as true a white transparent div that covers the entire page is positioned
+// under the status window causing a diming effect and preventing stray mouse
+// clicks.
+function showStatus(string, modal) {
+  setStatus(string);
+  Status.window().show(modal);
+}
+
+// Hides the status window
+function hideStatus() {
+  Status.window().hide();
+}
+
+// String extensions
+Object.extend(String.prototype, {
+  upcase: function() {
+    return this.toUpperCase();
+  },
+
+  downcase: function() {
+    return this.toLowerCase();
+  },
+  
+  toInteger: function() {
+    return parseInt(this);
+  },
+  
+  toSlug: function(allow_periods) {
+    replacement_regex = allow_periods ? /[\s:;=+]+/g : /[\s\.:;=+]+/g
+    return this.strip().downcase().replace(/[^-a-z0-9~\s\.:;+=_]/g, '').replace(replacement_regex, '-');
+  }
+});
+
+// Element extensions
+Element.addMethods({
+  hasWord: function(element, word) {
+    element = $(element);
+    if (element.nodeType == Node.TEXT_NODE) {
+      return element.nodeValue.include(word);
+    } else {
+      return $A(element.childNodes).any(function(child) { 
+        return Element.hasWord(child, word); 
+      });
+    }
+  },
+
+  centerInViewport: function(element) {
+    var header = $('header')
+    var headerBottom = header.getHeight();
+    var viewport = document.viewport.getScrollOffsets();
+    viewport.height = document.viewport.getHeight();
+    viewport.width = document.viewport.getWidth();
+    viewport.bottom = viewport.top + viewport.height;
+    viewport.top = Math.max(viewport.top, headerBottom);
+    viewport.height = viewport.bottom - viewport.top;
+    element.style.position = 'absolute';
+    element.style.top = (viewport.top + (viewport.height - element.getHeight()) / 2.5) + 'px';
+    element.style.left = (viewport.left + (viewport.width - element.getWidth()) / 2) + 'px';
+  }
+});
+
+Popup.AbstractWindow.addMethods({
+  centerWindowInView: function() {
+    this.element.centerInViewport();
+  }
+});
+
+// Originally based on code from:
+//   http://ajaxian.com/archives/handling-tabs-in-textareas
+
+var CodeAreaBehavior = Behavior.create({
+  initialize: function() {
+    new CodeArea(this.element);
+  }
+});
+
+var CodeArea = Class.create({
+  initialize: function(element) {
+    this.element = $(element);
+    this.element.observe('keydown', this.onkeydown.bind(this));
+  },
+  
+  onkeydown: function(event) {
+    // Set desired tab - defaults to two space softtab
+    var tab = "  ";
+    var tabStop = tab.length;
+    
+    var t = this.element;
+    
+    if (Prototype.Browser.IE) {
+      // Very limited support for IE
+      
+      if (event.keyCode == Event.KEY_TAB && !event.shiftKey) {
+        event.preventDefault();
+        document.selection.createRange().text = tab;
+      }
+      
+    } else {
+      // Safari and Firefox
+      
+      // If this is the tab key, make the selection start at the begining and end of lines for
+      // multi-line selections
+      if (event.keyCode == Event.KEY_TAB) this.normalizeSelection(t);
+      
+      var ss = t.selectionStart;
+      var se = t.selectionEnd;
+      
+      if (event.keyCode == Event.KEY_TAB) {
+        // Tab key
+        
+        event.preventDefault();
+        
+        if (event.shiftKey) {
+          // Shift + Tab
+          
+          if (t.value.slice(ss,se).indexOf("\n") != -1) {
+            // Special case of multi line selection
+            
+            var pre = t.value.slice(0, ss)
+            var sel = t.value.slice(ss, se)
+            var post = t.value.slice(se, t.value.length);
+            
+            // Back off one tab
+            sel = sel.replace(new RegExp("^" + tab, "gm"), '')
+            
+            // Put everything back together
+            t.value = pre.concat(sel).concat(post);
+            
+            // Readjust the selection
+            t.selectionStart = pre.length;
+            t.selectionEnd = pre.length + sel.length;
+            
+          } else {
+            // "Normal" case (no selection or selection on one line only)
+            
+            if (t.value.slice(ss - tabStop, ss) == tab) {
+              // Only unindent if there is a tab before the cursor
+              
+              t.value = t.value.slice(0, ss - tabStop).concat(t.value.slice(ss, t.value.length));
+              t.selectionStart = ss - tabStop;
+              t.selectionEnd = se - tabStop;
+            }
+          }
+        } else {
+          // Tab
+          
+          if (ss != se && t.value.slice(ss, se).indexOf("\n") != -1) {
+            // Special case of multi line selection
+            
+            // In case selection was not of entire lines (e.g. selection begins in the middle of a line)
+            // we ought to tab at the beginning as well as at the start of every following line.
+            var pre = t.value.slice(0, ss);
+            var sel = t.value.slice(ss, se);
+            var post = t.value.slice(se, t.value.length);
+            
+            // Indent one tab
+            sel = sel.replace(/^/gm, tab)
+            
+            // Put everything back together
+            t.value = pre.concat(sel).concat(post);
+            
+            // Readjust the selection
+            t.selectionStart = pre.length;
+            t.selectionEnd = pre.length + sel.length;
+            
+          } else {
+            // "Normal" case (no selection or selection on one line only)
+            
+            t.value = t.value.slice(0, ss).concat(tab).concat(t.value.slice(ss, t.value.length));
+            if (ss == se) {
+              t.selectionStart = t.selectionEnd = ss + tabStop;
+            } else {
+              t.selectionStart = ss + tabStop;
+              t.selectionEnd = se + tabStop;
+            }
+          }
+        }
+      
+      } else if (event.keyCode == Event.KEY_BACKSPACE && ss == se && t.value.slice(ss - tabStop, ss) == tab) {
+        // Backspace - delete preceding tab expansion, if it exists and nothing is selected
+        
+        event.preventDefault();
+        t.value = t.value.slice(0, ss - tabStop).concat(t.value.slice(ss, t.value.length));
+        t.selectionStart = ss - tabStop;
+        t.selectionEnd = se - tabStop;
+        
+      } else if (event.keyCode == Event.KEY_DELETE && t.value.slice(se, se + tabStop) == tab) {
+        // Delete key - delete following tab expansion, if exists
+        
+        event.preventDefault();
+        t.value = t.value.slice(0, ss).concat(t.value.slice(ss + tabStop ,t.value.length));
+        t.selectionStart = t.selectionEnd = ss;
+        
+      } else if (event.keyCode == Event.KEY_LEFT && t.value.slice(ss - tabStop, ss) == tab) {
+        // Left arrow - move across the tab in one go
+        
+        event.preventDefault();
+        t.selectionStart = t.selectionEnd = ss - tabStop;
+      } else if (event.keyCode == Event.KEY_RIGHT && t.value.slice(ss, ss + tabStop) == tab) {
+        // Left/right arrow - move across the tab in one go
+        
+        event.preventDefault();
+        t.selectionStart = t.selectionEnd = ss + tabStop;
+        
+      }
+    }
+  },
+  
+  normalizeSelection: function(textarea) {
+    var b = 0;
+    var value = textarea.value;
+    var e = textarea.length;
+    var ss = textarea.selectionStart;
+    var se = textarea.selectionEnd;
+    
+    if (ss != se && textarea.value.slice(ss, se).indexOf("\n") != -1) {
+      // If multi-line adjust the selection
+      
+      // If the end of the line is selected back off one character
+      if (textarea.value.slice(se - 1, se) == "\n") se = se - 1;
+      
+      // If the selection does not end with a new line or the end of the document increment until it does
+      while ((se < e) && (textarea.value.slice(se, se + 1) != "\n")) se += 1;
+      
+      // If the selection does not begin at a new line or the begining of the document back off until it does
+      while ((ss > b) && (textarea.value.slice(ss - 1, ss) != "\n")) ss -= 1;
+      
+      textarea.selectionStart = ss;
+      textarea.selectionEnd = se;
+    }
+  }
+});
+
+if(typeof(relative_url_root) === 'undefined'){ relative_url_root = ''}
+
+var TabControlBehavior = Behavior.create({
+  initialize: function() {
+    new TabControl(this.element);
+  }
+});
+
+var TabControl = Class.create({
+  initialize: function(element) {
+    this.element = $(element);
+    TabControls[this.element.identify()] = this;
+    this.tabs = $A();
+    this.tabContainer = this.element.down('.tabs');
+    this.tabContainer.observe('click', this.ontabclick.bind(this));
+    this.updateTabs();
+    this.autoSelect();
+  },
+  
+  updateTabs: function() {
+    this.element.select('.page').each(function(page) {
+      if (!this.findTabByPage(page)) this.addTab(page);
+    }.bind(this));
+  },
+  
+  addTab: function(page) {
+    var tab = new TabControl.Tab(page);
+    this.tabs.push(tab);
+    this.tabContainer.insert({bottom: tab});
+    $('page_part_index_field').setValue(this.tabs.length);
+    page.hide();
+  },
+  
+  removeSelected: function() {
+    var tab = this.selected;
+    var index = this.tabs.indexOf(tab);
+    var newSelectedTab = this.tabs[index-1];
+    var idInput = tab.page.down('.id_input');
+    var deleteInput = tab.page.down('.delete_input');
+    deleteInput.setValue('true');
+    tab.remove();
+    this.tabs = this.tabs.without(tab);
+    this.element.insert(idInput).insert(deleteInput);
+    this.select(newSelectedTab || this.tabs.first());
+  },
+  
+  select: function(tab) {
+    if (this.selected) this.selected.unselect();
+    this.selected = tab;
+    tab.select();
+    cookie = Cookie.set('current_tab', tab.caption, 24, '/admin');
+  },
+  
+  autoSelect: function() {
+    if (!this.tabs.any()) return;
+    var caption = Cookie.get('current_tab');
+    var tab = this.findTabByCaption(caption);
+    this.select(tab || this.tabs.first());
+  },
+  
+  ontabclick: function(event) {
+    var e = event.findElement('.tab');
+    if (e) {
+      var tab = this.findTabByElement(e);
+      if (tab) {
+        if (event.target.hasClassName('close')) {
+          if (confirm('Remove the "' + tab.caption + '" part?')) {
+            var lastSelected = this.selected;
+            this.select(tab);
+            this.removeSelected();
+            if (lastSelected != tab) this.select(lastSelected);
+          }
+        } else {
+          this.select(tab);
+        }
+        event.stop();
+      }
+    }
+  },
+  
+  findTabByCaption: function(caption) {
+    return this.tabs.detect(function(tab) { return tab.caption == caption });
+  },
+  
+  findTabByPage: function(page) {
+    return this.tabs.detect(function(tab) { return tab.page == page });
+  },
+  
+  findTabByElement: function(element) {
+    return this.tabs.detect(function(tab) { return tab.element == element });
+  }
+});
+
+TabControl.Tab = Class.create({
+  initialize: function(page) {
+    this.page = page;
+    this.caption = page.readAttribute('data-caption');
+  },
+  
+  select: function() {
+    this.page.show();
+    this.element.addClassName('here');
+  },
+  
+  unselect: function() {
+    this.page.hide();
+    this.element.removeClassName('here');
+  },
+  
+  remove: function() {
+    this.page.remove();
+    this.element.remove();
+  },
+  
+  toElement: function() {
+    this.element = $a({'href': '#', 'class': 'tab'}, $span(this.caption), $img({'src': relative_url_root + '/images/admin/tab_close.png', 'class': 'close', 'alt': 'Remove part', 'title': 'Remove part'})).addClassName('tab');
+    return this.element;
+  }
+});
+
+var TabControls = {};
+
+var RuledTableBehavior = Behavior.create({
+  initialize: function() {
+    if (Prototype.Browser.IE)
+      this.element.
+        observe('mouseover', this.onMouseOverRow.bindAsEventListener(this, 'addClassName')).
+        observe('mouseout', this.onMouseOverRow.bindAsEventListener(this, 'removeClassName'));
+  },
+  
+  onMouseOverRow: function(event, method) {
+    var row = event.findElement('tr');
+    if (row) row[method]('hover');
+  }
+});
+
+/*
+ *  sitemap.js
+ *  
+ *  depends on: prototype.js and lowpro.js
+ *  
+ *  Used by Radiant to create the expandable sitemap.
+ *  
+ *  To use, simply add the following lines to application.js:
+ *  
+ *     Event.addBehavior({
+ *       'table#site_map': SiteMapBehavior()
+ *     });
+ *
+ */
+
+var SiteMapBehavior = Behavior.create({
+  initialize: function() {
+    this.readExpandedCookie();
+  },
+  
+  onclick: function(event) {
+    if (this.isExpander(event.target)) {
+      var row = event.findElement('tr');
+      if (this.hasChildren(row)) {
+        this.toggleBranch(row, event.target);
+      }
+    }
+  },
+  
+  hasChildren: function(row) {
+    return !row.hasClassName('no_children');
+  },
+  
+  isExpander: function(element) {
+    return element.match('img.expander');
+  },
+  
+  isExpanded: function(row) {
+    return row.hasClassName('children_visible');
+  },
+  
+  isRow: function(element) {
+    return element && element.tagName && element.match('tr');
+  },
+  
+  extractLevel: function(row) {
+    if (/level_(\d+)/i.test(row.className))
+      return RegExp.$1.toInteger();
+  },
+  
+  extractPageId: function(row) {
+    if (/page_(\d+)/i.test(row.id))
+      return RegExp.$1.toInteger();
+  },
+  
+  getExpanderImageForRow: function(row) {
+    return row.down('img');
+  },
+  
+  readExpandedCookie: function() {
+    var matches = document.cookie.match(/expanded_rows=(.+?);/);
+    this.expandedRows = matches ? decodeURIComponent(matches[1]).split(',') : [];
+  },
+
+  saveExpandedCookie: function() {
+    document.cookie = "expanded_rows=" + encodeURIComponent(this.expandedRows.uniq().join(",")) + "; path=/admin";
+  }, 
+
+  persistCollapsed: function(row) {
+    var pageId = this.extractPageId(row);
+    this.expandedRows = this.expandedRows.without(pageId);
+    this.saveExpandedCookie();
+  },
+
+  persistExpanded: function(row) {
+    this.expandedRows.push(this.extractPageId(row));
+    this.saveExpandedCookie();
+  },
+
+  toggleExpanded: function(row, img) {
+    if (!img) img = this.getExpanderImageForRow(row);
+    if (this.isExpanded(row)) {
+      img.src = img.src.replace('collapse', 'expand');
+      row.removeClassName('children_visible');
+      row.addClassName('children_hidden');
+      this.persistCollapsed(row);
+    } else {
+      img.src = img.src.replace('expand', 'collapse');
+      row.removeClassName('children_hidden');
+      row.addClassName('children_visible');
+      this.persistExpanded(row);
+    }
+  },
+  
+  hideBranch: function(parent, img) {
+    var level = this.extractLevel(parent), row = parent.next();
+    while (this.isRow(row) && this.extractLevel(row) > level) {
+      row.hide();
+      row = row.next();
+    }
+    this.toggleExpanded(parent, img);
+  },
+  
+  showBranch: function(parent, img) {
+    var level = this.extractLevel(parent), row = parent.next(),
+        children = false, expandLevels = [level + 1];
+        
+    while (this.isRow(row)) {
+      var currentLevel = this.extractLevel(row);
+      if (currentLevel <= level) break;
+      children = true;
+      if (currentLevel < expandLevels.last()) expandLevels.pop();
+      if (expandLevels.include(currentLevel)) {
+        row.show();
+        if (this.isExpanded(row)) expandLevels.push(currentLevel + 1);
+      }
+      row = row.next();
+    }
+    if (!children) this.getBranch(parent);
+    this.toggleExpanded(parent, img);
+  },
+  
+  getBranch: function(row) {
+    var id = this.extractPageId(row);
+    var level = this.extractLevel(row);
+    var spinner = $('busy_' + id);
+        
+    new Ajax.Updater(
+      row,
+      '../admin/pages/' + id + '/children/?level=' + level,
+      {
+        insertion: "after",
+        method: "get",
+        onLoading:  function() { spinner.show(); this.updating = true  }.bind(this),
+        onComplete: function() { spinner.fade(); this.updating = false }.bind(this)
+      }
+    );
+  },
+  
+  toggleBranch: function(row, img) {
+    if (!this.updating) {
+      if (this.isExpanded(row)) {
+        this.hideBranch(row, img);
+      } else {
+        this.showBranch(row, img);
+      }
+    }
+  }
+});
+
+
+var ShortcutKeysBehavior = Behavior.create({
+  onkeydown: function(event){
+    var character = String.fromCharCode(event.keyCode);
+    if(!event.shiftKey && !character.blank())
+      character = character.toLowerCase();
+    if(event.ctrlKey && event.keyCode != 17){
+      var button = $$('input[accesskey='+character+']')[0];
+      if(button){
+        event.stop();
+        button.click();
+      } else {
+        var control = TabControls['tab_control'];
+        if(event.keyCode == 219){ // [
+          control.selectPreviousTab();
+        }
+        if(event.keyCode == 221){ // ]
+          control.selectNextTab();
+        }
+        if(event.keyCode >= 49 && event.keyCode <= 57){ // 1..9
+          var index = event.keyCode - 49;
+          control.selectTabByIndex(index);
+          event.stop();
+        } 
+      }
+    }
+  }
+});
+
+/*
+ * toggle.js
+ * 
+ * dependencies: prototype.js, lowpro.js, effect.js
+ * 
+ * --------------------------------------------------------------------------
+ * 
+ * A LowPro and Prototype-based library with a collection of behaviors for
+ * unobtrusively toggling the visibility of other elements via links,
+ * checkboxes, radio buttons, and selects.
+ * 
+ * To use you will need to install the following LowPro behaviors. If you are 
+ * using Rails, put this in "application.js":
+ * 
+ *   Event.addBehavior({
+ *     'a.toggle': Toggle.LinkBehavior(),
+ *     'input.checkbox.toggle': Toggle.CheckboxBehavior(),
+ *     'div.radio_group.toggle': Toggle.RadioGroupBehavior(),
+ *     'select.toggle': Toggle.SelectBehavior()
+ *   });
+ * 
+ * Once the hooks are installed correctly, you should add a "rel" attribute
+ * to each element that you want to use as a toggle trigger. Set the value
+ * of the "rel" attribute to "toggle[id]" where id is equal to the ID of
+ * the element that you want to toggle. You can toggle multiple elements by 
+ * separating the IDs with commas (like this: "toggle[id1,id2,id3]").
+ * 
+ * For example, a link with a class of "toggle":
+ * 
+ *   <a class="toggle" href="#more" rel="toggle[more]">More</a>
+ * 
+ * will become a trigger for a div with an ID of "more". Checkboxes work in
+ * the exact same manner. To use with a group of radio buttons, make sure
+ * that all of the radio buttons are inside of a div with a class of
+ * "radio_group toggle". Then set the "rel" attribute on each radio button
+ * that should act as a toggle trigger. Selects work in a similar manner,
+ * but the "rel" attribute should be set on each option element that should
+ * toggle the visibility of an element or array of elements.
+ * 
+ * Each of the included LowPro behaviors can be customized in various ways.
+ * Check out the inline documentation for detailed usage information.
+ * 
+ * Project Homepage: http://github.com/fivepointssolutions/togglejs
+ * 
+ * --------------------------------------------------------------------------
+ * 
+ * Copyright (c) 2007-2010, Five Points Solutions, Inc.
+ * Copyright (c) 2010, John W. Long
+ * 
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ * 
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+ * DEALINGS IN THE SOFTWARE.
+ *
+ */
+
+var Toggle = {
+  
+  DefaultEffect: 'slide',
+  DefaultEffectDuration: 0.25,
+  
+  EffectPairs: {
+    'slide' : ['SlideDown','SlideUp'],
+    'blind' : ['BlindDown','BlindUp'],
+    'appear': ['Appear','Fade']
+  },
+  
+  /**
+   *  Toggle.extractAnchor(url) -> String
+   *  
+   *  Utility function. Returns everything after the first "#" character in a
+   *  string. Used to extract the anchor from a URL.
+  **/
+  extractAnchor: function(url) {
+    var matches = String(url).match(/\#(.+)$/);
+    if (matches) return matches[1];
+  },
+  
+  /**
+   *  Toggle.extractToggleObjects(string) -> Array
+   *  
+   *  Utility function. Returns the associated toggle elements in a string. For
+   *  string "toggle[one,two,three]" it will return the elements with IDs of
+   *  "one", "two", and "three".
+  **/
+  extractToggleObjects: function(string) {
+    var matches = String(string).match(/^toggle\[(.+)\]$/);
+    if (matches) {
+      var ids = matches[1].split(',');
+      var elements = [];
+      ids.each(function(id) { elements.push($(id)) });
+      return elements;
+    } else {
+      return [];
+    }
+  },
+  
+  /**
+   *  Toggle.toggle(elements, effect, options)
+   *  
+   *  Utility function. Toggles an element or array of elements with effect
+   *  and options. Similar to `Effect.toggle()`, but works with multiple
+   *  elements and also supports setting effect to "none".
+   *  
+   *  Parameters
+   *  - elements: An element or array of elements to toggle
+   *  - effect: This option specifies the effect that should be used when
+   *    toggling. The default is "slide", but it can also be set to
+   *    "blind", "appear", or "none".
+   *  - options: The standard Effect options hash with the addition of
+   *    beforeToggle and afterToggle events.
+  **/
+  toggle: function(elements, effect, options) {
+    var elements = $A([elements]).flatten();
+    var effect = (effect || Toggle.DefaultEffect).toLowerCase();
+    var options = options || {};
+    
+    if (effect == 'none') {
+      if (options.beforeStart) options.beforeStart();
+      elements.invoke("toggle");
+      if (options.afterFinish) options.afterFinish();
+    } else {
+      options.duration = options.duration || Toggle.DefaultEffectDuration;
+      
+      var effects = elements.map(function(e) {
+        var element = $(e);
+        var inOrOut = element.visible() ? 1 : 0;
+        var name = Toggle.EffectPairs[effect][inOrOut];
+        return new Effect[name](element, { sync: true });
+      });
+      
+      new Effect.Parallel(effects, options);
+    }
+  },
+  
+  /**
+   *  Toggle.show(elements, effect, options)
+   *  
+   *  Utility function. Shows an element or array of elements with effect
+   *  and options.
+  **/
+  show: function(elements, effect, options) {
+    var elements = $([elements]).flatten();
+    elements = elements.map(function(element) { return $(element) });
+    elements = elements.reject(function(element) { return element.visible() });
+    Toggle.toggle(elements, effect, options);
+  },
+  
+  /**
+   *  Toggle.hide(elements, effect, options)
+   *  
+   *  Utility function. Hides an element or array of elements with effect
+   *  and options.
+  **/
+  hide: function(elements, effect, options) {
+    var elements = $([elements]).flatten();
+    elements = elements.map(function(element) { return $(element) });
+    elements = elements.reject(function(element) { return !element.visible() });
+    Toggle.toggle(elements, effect, options);
+  },
+  
+  /**
+   *  Toggle.wrapElement(element)
+   *  
+   *  Utility function. Wraps element with a div of class "toggle_wrapper"
+   *  unless one already exists. Returns the "toggle_wrapper" for given
+   *  element. This is necessary because effects only work properly on
+   *  elements that do not have padding, borders, or margin.
+  **/
+  wrapElement: function(element) {
+    var element = $(element);
+    var parent = $(element.parentNode);
+    if (parent.hasClassName('toggle_wrapper')) {
+      return parent;
+    } else {
+      return element.wrap($div({'class': 'toggle_wrapper', 'style': 'display: none'}));
+    }
+  }
+};
+
+/**
+ * class Toggle.LinkBehavior < Behavior
+ *
+ *  Allows a link to toggle the display of another element or array of
+ *  elements on and off. Just set the <tt>rel</tt> attribute to
+ *  "toggle[id1,id2,...]" on the link and the href of the link to the
+ *  ID of the first element ("#id1").
+ *  
+ *  Options
+ *  - effect: This option specifies the effect that should be used when
+ *    toggling. The default is "slide", but it can also be set to
+ *    "blind", "appear", or "none".
+ *  - onLoad: Called after the behavior is initialized. The function is
+ *    automatically bound to the behavior (so "this" referes to the
+ *    behavior).
+ *  - beforeToggle: Called after the link is clicked, but before the effect is
+ *    started. The link is passed as the first parameter and the
+ *    function is automatically bound to the behavior (so "this"
+ *    refers to the behavior).
+ *  - afterToggle: Called after the effect is complete. The link is passed as
+ *    the first parameter and the function is automatically bound
+ *    to the behavior (so "this" refers to the behavior).
+**/
+Toggle.LinkBehavior = Behavior.create({
+  initialize: function(options) {
+    var options = options || {};
+    
+    this.effect = options.effect || Toggle.DefaultEffect;
+    
+    this.onLoad = options.onLoad || Prototype.emptyFunction;
+    this.onLoad.bind(this);
+    
+    this.beforeToggle = options.beforeToggle || Prototype.emptyFunction;
+    this.beforeToggle.bind(this);
+    
+    this.afterToggle = options.afterToggle || Prototype.emptyFunction;
+    this.afterToggle.bind(this);
+    
+    var elements = Toggle.extractToggleObjects(this.element.readAttribute('rel'));
+    this.toggleWrappers = elements.map(function(e) { return Toggle.wrapElement(e) });
+    
+    this.toggleID = Toggle.extractAnchor(this.element.href);
+    this.element.behavior = this; // a bit of a hack
+    Toggle.addLink(this.toggleID, this.element);
+    
+    this.onLoad(this.element);
+  },
+  
+  onclick: function() {
+    this.toggle();
+    return false;
+  },
+  
+  toggle: function() {
+    Toggle.toggle(
+      this.toggleWrappers,
+      this.effect,
+      {
+        beforeStart: function() { this.beforeToggle(this.element) }.bind(this),
+        afterFinish: function() { this.afterToggle(this.element) }.bind(this)
+      }
+    );
+  }
+});
+Toggle.links = {};
+Toggle.addLink = function(id, element) {
+  this.links[id] = this.links[id] || $A();
+  this.links[id].push(element);
+};
+
+
+// Automatically toggle associated element if anchor is equal to the ID of the
+// link's associated element.
+Event.observe(window, 'dom:loaded', function() {
+  var anchor = Toggle.extractAnchor(window.location);
+  var links = Toggle.links[anchor];
+  if (links) {
+    var behavior = links.first().behavior;
+    behavior.onclick();
+  }
+});
+
+/**
+ * class Toggle.CheckboxBehavior < Behavior
+ *  
+ *  Allows a the selection of a checkbox to toggle an element or group of
+ *  elements on and off. Just set the `rel` attribute to "toggle[id1,id2,...]"
+ *  on the checkbox.
+ *  
+ *  Options
+ *  - invert: When set to true the associated element is hidden when checked.
+ *  - effect: This option specifies the effect that should be used when
+ *    toggling. The default is "slide", but it can also be set to
+ *    "blind", "appear", or "none".
+**/
+Toggle.CheckboxBehavior = Behavior.create({
+  initialize: function(options) {
+    var options = options || {};
+    this.invert = options.invert;
+    
+    var elements = Toggle.extractToggleObjects(this.element.readAttribute('rel'));
+    this.toggleWrappers = elements.map(function(e) { return Toggle.wrapElement(e) });
+    
+    this.effect = 'none';
+    this.toggle();
+    
+    this.effect = options.effect || Toggle.DefaultEffect;
+  },
+  
+  onclick: function(event) {
+    this.toggle();
+  },
+  
+  toggle: function() {
+    var method, formElementMethod;
+    
+    if (this.invert) {
+      method = this.element.checked ? 'hide' : 'show';
+      formElementMethod = this.element.checked ? 'disable' : 'enable';
+    } else {
+      method = this.element.checked ? 'show' : 'hide';
+      formElementMethod = this.element.checked ? 'enable' : 'disable';
+    }
+    
+    Toggle[method](this.toggleWrappers, this.effect);
+    
+    // Disable/enable form elements based on whether the container is
+    // visible or not.
+    this.toggleWrappers.each(function(wrapper) {
+      Form.getElements(wrapper).invoke(formElementMethod);
+    });
+  }
+});
+
+/**
+ * class Toggle.RadioGroupBehavior < Behavior
+ *  
+ *  Allows you to toggle elements based on the selection of a group of radio
+ *  buttons. Just set the <tt>rel</tt> attribute to "toggle[id1,id2,...]" on
+ *  each radio button. Radio buttons must be grouped inside a containing
+ *  element to which the behavior is applied.
+ *  
+ *  Options
+ *  - effect: This option specifies the effect that should be used when
+ *    toggling. The default is "slide", but it can also be set to
+ *    "blind", "appear", or "none".
+**/
+Toggle.RadioGroupBehavior = Behavior.create({
+  initialize: function(options) {
+    var options = options || {};
+    
+    this.radioButtons = this.element.select('input[type=radio]');
+    
+    this.toggleWrapperIDs = $A();
+    this.toggleWrapperIDsFor = {};
+    
+    this.radioButtons.each(function(radioButton) {
+      var elements = Toggle.extractToggleObjects(radioButton.readAttribute('rel'))
+      var ids = elements.invoke('identify');
+      var wrapperIDs = elements.map(function(e) { return Toggle.wrapElement(e) }).invoke('identify');
+      this.toggleWrapperIDsFor[radioButton.identify()] = wrapperIDs;
+      this.toggleWrapperIDs.push(wrapperIDs);
+      radioButton.observe('click', this.onRadioButtonClick.bind(this));
+    }.bind(this));
+    
+    this.toggleWrapperIDs = this.toggleWrapperIDs.flatten().uniq()
+    
+    this.effect = "none";
+    this.toggle();
+    
+    this.effect = options.effect || Toggle.DefaultEffect;
+  },
+  
+  onRadioButtonClick: function(event) {
+    this.toggle();
+  },
+  
+  toggle: function() {
+    var group = this.element;
+    var radioButton = this.radioButtons.find(function(b) { return b.checked });
+    var wrapperIDs = this.toggleWrapperIDsFor[radioButton.identify()];
+    var partitioned = this.toggleWrapperIDs.partition(function(id) { return wrapperIDs.include(id) });
+    Toggle.show(partitioned[0], this.effect);
+    Toggle.hide(partitioned[1], this.effect);
+  }
+});
+
+
+/**
+ * class Toggle.SelectBehavior < Behavior
+ *  
+ *  Allows you to toggle elements based on the selection of a combo box. Just
+ *  set the <tt>rel</tt> attribute to "toggle[id1,id2,...]" on the each select
+ *  option.
+ *  
+ *  Options
+ *  - effect: This option specifies the effect that should be used when
+ *    toggling. The default is "slide", but it can also be set to
+ *    "blind", "appear", or "none".
+**/
+Toggle.SelectBehavior = Behavior.create({
+  initialize: function(options) {
+    var options = options || {};
+    
+    var optionElements = this.element.select('option');
+    
+    this.toggleWrapperIDs = $A();
+    this.toggleWrapperIDsFor = {};
+    
+    optionElements.each(function(optionElement) {
+      var elements = Toggle.extractToggleObjects(optionElement.readAttribute('rel'))
+      var wrapperIDs = elements.map(function(e) { return Toggle.wrapElement(e) }).invoke('identify');
+      this.toggleWrapperIDsFor[optionElement.identify()] = wrapperIDs;
+      this.toggleWrapperIDs.push(wrapperIDs);
+    }.bind(this));
+    
+    this.toggleWrapperIDs = this.toggleWrapperIDs.flatten().uniq()
+    
+    this.effect = "none";
+    this.toggle();
+    
+    this.effect = options.effect || Toggle.DefaultEffect;
+  },
+  
+  onchange: function(event) {
+    this.toggle();
+  },
+  
+  toggle: function() {
+    var combo = this.element;
+    var option = $(combo.options[combo.selectedIndex]);
+    var wrapperIDs = this.toggleWrapperIDsFor[option.identify()];
+    var partitioned = this.toggleWrapperIDs.partition(function(id) { return wrapperIDs.include(id) });
+    Toggle.show(partitioned[0], this.effect);
+    Toggle.hide(partitioned[1], this.effect);
+  }
+});
+
+var ValidationErrorBehavior = Behavior.create({
+  initialize: function() {
+    new ValidationError(this.element);
+  }
+});
+
+var ValidationError = Class.create({
+  initialize: function(element) {
+    this.element = $(element);
+    this.closer = new Element('a', {'href' : '#', 'class' : 'closer' }).update("x");
+    this.closer.observe('click', this.hide.bindAsEventListener(this));
+    this.element.insert(this.closer, {position : 'top'});
+  },
+  hide: function (event) {
+    event.stop();
+    this.element.fade();
+  }
+});
+
+// Ensure that relative_url_root is defined
+if(typeof(relative_url_root) === 'undefined'){ relative_url_root = ''}
+
+// Popup Images
+Popup.BorderImage            = relative_url_root + '/images/admin/popup_border_background.png';
+Popup.BorderTopLeftImage     = relative_url_root + '/images/admin/popup_border_top_left.png';
+Popup.BorderTopRightImage    = relative_url_root + '/images/admin/popup_border_top_right.png';
+Popup.BorderBottomLeftImage  = relative_url_root + '/images/admin/popup_border_bottom_left.png';
+Popup.BorderBottomRightImage = relative_url_root + '/images/admin/popup_border_bottom_right.png';
+
+// Status Images
+Status.SpinnerImage          = relative_url_root + '/images/admin/status_spinner.gif';
+Status.BackgroundImage       = relative_url_root + '/images/admin/status_background.png';
+Status.TopLeftImage          = relative_url_root + '/images/admin/status_top_left.png';
+Status.TopRightImage         = relative_url_root + '/images/admin/status_top_right.png';
+Status.BottomLeftImage       = relative_url_root + '/images/admin/status_bottom_left.png';
+Status.BottomRightImage      = relative_url_root + '/images/admin/status_bottom_right.png';
+
+// Status Message Styles
+Status.MessageColor = '#e5e5e5';
+Status.MessageFontFamily = '"Lucida Grande", "Bitstream Vera Sans", Helvetica, Verdana, Arial, sans-serif';
+Status.MessageFontSize = '90%';
+
+// Use Modal Status Windows
+Status.Modal = true;
+Status.ModalOverlayColor = 'black';
+Status.ModalOverlayOpacity = 0.2;
+
+// Reload behaviors for Ajax Requests
+Event.addBehavior.reassignAfterAjax = true;
+
+// Wire in Behaviors
+Event.addBehavior({
+  'body': ShortcutKeysBehavior(),
+  
+  'a.popup': Popup.TriggerBehavior(),
+  
+  'table#pages': SiteMapBehavior(),
+  
+  'input#page_title': function() {
+    var title = this;
+    var slug = $('page_slug');
+    var breadcrumb = $('page_breadcrumb');
+    var oldTitle = title.value;
+    
+    if (!slug || !breadcrumb) return;
+    
+    new Form.Element.Observer(title, 0.15, function() {
+      if (oldTitle.toSlug() == slug.value) slug.value = title.value.toSlug();
+      if (oldTitle == breadcrumb.value) breadcrumb.value = title.value;
+      oldTitle = title.value;
+    });
+  },
+  
+  'a.toggle': Toggle.LinkBehavior({
+    onLoad: function(link) {
+      if (/less/i.match(link.innerHTML)) Toggle.toggle(this.toggleWrappers, this.effect);
+    },
+    afterToggle: function(link) {
+      link.toggleClassName('more');
+      link.toggleClassName('less');
+      if (/more/i.match(link.innerHTML)) { link.innerHTML = 'Less'; return; }
+      if (/less/i.match(link.innerHTML)) { link.innerHTML = 'More'; return; }
+    }
+  }),
+  
+  'div#tab_control': TabControlBehavior(),
+  
+  'table.index': RuledTableBehavior(),
+  
+  'form': Status.FormBehavior(),
+  
+  'form input.activate': function() {
+    this.activate();
+  },
+  
+  'form textarea': CodeAreaBehavior(),
+  
+  'input.date': DateInputBehavior(),
+  
+  'select#page_status_id':  PageStatusBehavior(),
+  
+  'span.error':  ValidationErrorBehavior()
+  
+});
