@@ -27,7 +27,8 @@ var TabControl = Class.create({
     var tab = new TabControl.Tab(page);
     this.tabs.push(tab);
     this.tabContainer.insert({bottom: tab});
-    $('page_part_index_field').setValue(this.tabs.length);
+    var part_index = $('page_part_index_field');
+    part_index.setValue(Number(part_index.value)+1);
     page.hide();
   },
   
@@ -72,6 +73,7 @@ var TabControl = Class.create({
           }
         } else {
           this.select(tab);
+          $('part_' + tab.caption + '_content').focus();
         }
         event.stop();
       }

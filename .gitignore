@@ -2,6 +2,7 @@ cache/*
 log/*
 tmp/*
 data/*
+.sass-cache/*
 .DS_Store
 doc/api
 doc/app
@@ -11,3 +12,5 @@ public/stylesheets/sass/.sass-cache/*
 .sass_cache
 vendor/radiant
 config/database.yml
+public/fonts/*
+public/images/local/*

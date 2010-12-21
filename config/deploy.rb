@@ -10,7 +10,7 @@ set :branch, 'master'
 
 role :web, "moriarty.spanner.org"
 role :app, "moriarty.spanner.org"
-# role :db,  "eccles.spanner.org", :primary => true
+# role :db,  "data.spanner.org", :primary => true
 
 set :deploy_to, "/var/www/#{application}"
 set :deploy_via, :remote_cache
@@ -29,6 +29,11 @@ end
 after "deploy:update" do
   run "ln -s #{shared_path}/config/database.yml #{current_release}/config/database.yml" 
   run "ln -s #{shared_path}/assets/assets #{current_release}/public/assets" 
+  run "ln -s #{shared_path}/public/favicon.ico #{current_release}/public/favicon.ico"
+  run "ln -s #{shared_path}/public/robots.txt #{current_release}/public/robots.txt"
+  run "ln -s #{shared_path}/public/images/furniture #{current_release}/public/images/local"
+  run "ln -s #{shared_path}/public/fonts #{current_release}/public/fonts"
+  run "ln -s /var/www/radiant_beta #{current_release}/vendor/radiant"
 end
 
 namespace :deploy do

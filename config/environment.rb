@@ -64,7 +64,7 @@ Radiant::Initializer.run do |config|
   config.active_record.observers = :user_action_observer
 
   # Make Active Record use UTC-base instead of local time
-  config.time_zone = 'UTC'
+  config.time_zone = 'London'
 
   # Set the default field error proc
   config.action_view.field_error_proc = Proc.new do |html, instance|
@@ -74,6 +74,11 @@ Radiant::Initializer.run do |config|
       html
     end
   end
+
+  config.gem 'will_paginate'
+  config.gem 'paperclip'
+  config.gem 'compass'
+  config.gem 'compass-960-plugin', :lib => 'ninesixty'
 
   config.after_initialize do
     # Add new inflection rules using the following format:
