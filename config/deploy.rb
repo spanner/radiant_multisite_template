@@ -1,6 +1,6 @@
 set :application, "multi_radiant"
 set :scm, :git
-set :repository, "git://github.com/spanner/radiant_multisite_template.git"
+set :repository, "git@github.com:spanner/radiant_multisite_template.git"
 set :git_enable_submodules, 1
 set :ssh_options, { :forward_agent => true }
 

@@ -7,9 +7,6 @@
 [submodule "vendor/extensions/sitemap_xml"]
 	path = vendor/extensions/sitemap_xml
 	url = git://github.com/Aissac/radiant-sitemap-xml-extension.git
-[submodule "vendor/extensions/sass_grid"]
-	path = vendor/extensions/sass_grid
-	url = git://github.com/spanner/radiant-sass_grid-extension.git
 [submodule "vendor/extensions/paperclipped_uploader"]
 	path = vendor/extensions/paperclipped_uploader
 	url = git://github.com/spanner/radiant-paperclipped_uploader-extension.git
