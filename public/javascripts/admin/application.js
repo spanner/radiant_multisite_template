@@ -1,5 +1,5 @@
 // Ensure that relative_url_root is defined
-if(typeof(relative_url_root) === 'undefined'){ relative_url_root = ''}
+if(typeof(relative_url_root) === 'undefined'){ relative_url_root = '';}
 
 // Popup Images
 Popup.BorderImage            = relative_url_root + '/images/admin/popup_border_background.png';
@@ -7,6 +7,12 @@ Popup.BorderTopLeftImage     = relative_url_root + '/images/admin/popup_border_t
 Popup.BorderTopRightImage    = relative_url_root + '/images/admin/popup_border_top_right.png';
 Popup.BorderBottomLeftImage  = relative_url_root + '/images/admin/popup_border_bottom_left.png';
 Popup.BorderBottomRightImage = relative_url_root + '/images/admin/popup_border_bottom_right.png';
+
+// Popup Buttons
+Popup.ButtonsClass           = 'buttons';
+
+// Make all popups draggable
+Popup.Draggable = true;
 
 // Status Images
 Status.SpinnerImage          = relative_url_root + '/images/admin/status_spinner.gif';

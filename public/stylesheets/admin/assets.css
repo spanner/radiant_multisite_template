@@ -1,126 +1,348 @@
-#assets-table table { margin-bottom: 0; }
-table.index h4 { font-size: 110%; margin-top: .5em; margin-bottom: .25em;}
- 
-table.index p { margin-top: .25em; margin-bottom: .5em; }
-table.index td.asset { width: 72px; }
-
-table.index td.asset a {   }
-table.index td.asset a img { padding: 2px; background-color: #eee; border: 1px solid #ccc;}
-
-table.index td.asset-title, table.index td.tag-name { font-size: 115%; font-weight: bold;}
-table.index td.asset-title a, table.index td.tag-name a { text-decoration: none; color: black; }
-
-table.index td.asset-tags a { color: black; text-decoration:none; }
-table td.asset-title a:hover, table.index td.asset-tags a:hover, table.index td.tag-name a:hover {
- color: blue; text-decoration: underline; }
-table .caption { color: #9eb3bf; font-style: italic; font-weight: normal; margin: 10px; }
-
-table th.content_type { width: 120px; }
-table td.content_type { width: 120px; color: #9eb3bf; font-style: italic; font-weight: normal; }
-table td.add-to-bucket { width: 90px;}
-
-#assets { clear: both; position: relative; margin-bottom: 4px; padding: 0; cursor: default;
-  border: solid #cdc295; border-width: 0 1px 1px 1px; min-height: 150px; height: auto !important; height: 150px; background: white; }
-
-#asset-bucket { width: 70%; border: 5px solid #c0c0c0; background: white; padding: 20px; cursor: move; }
-#close-link { margin-top: 10px; }
-   
-#assets h4 { font-size: 100%; font-weight: bold; margin: 0; } 
-#assets .note { font-size: 85%; font-weight: normal; color: black; }
-#assets p { padding: 0 10px 7px; background: #eae3c5; margin: 0; height: 20px; line-height: 22px; }
-
-#assets p.note { margin: 5px 0; font-size: 85%; font-style: italic;  background: #fff;}
-
-#clear-bucket, #reorder, #done {position: absolute; right: 10px;}
-#clear-bucket a, #reorder a, #done a { text-align: right; font-weight: bold; font-size: 85%;
-  color: black; text-decoration: none; }
-#clear-bucket a:hover, #reorder a:hover, #done a:hover { color: blue; text-decoration: underline; }
-   
-#assets .pane {  }
-
-#asset-tabs { margin: 0; border-bottom: 1px solid #cdc295;  }
-#asset-tabs .asset-tab { background-color: #f5f1e2; border: 1px solid #f5f1e2; border-bottom: 1px solid #cdc295;
-  color: black; display: inline-block; font-size: 100%; font-weight: bold; text-align: left; margin: 0 0 -1px 0;
-  padding: 7px 10px 4px; text-decoration: none; text-transform: titlecase; outline: none; -moz-outline: none;
+/* line 3, ../sass/admin/assets.sass */
+.asset_filters {
+  float: left;
+  padding: 2px 0;
+}
+/* line 6, ../sass/admin/assets.sass */
+.asset_filters a {
+  -moz-border-radius: 100px;
+  -webkit-border-radius: 100px;
+  -o-border-radius: 100px;
+  -ms-border-radius: 100px;
+  -khtml-border-radius: 100px;
+  border-radius: 100px;
+  color: #555555;
+  padding: 3px 8px;
+  text-decoration: none;
+  font-size: 12px;
+}
+/* line 12, ../sass/admin/assets.sass */
+.asset_filters a:hover {
+  background: #cccccc;
+}
+/* line 14, ../sass/admin/assets.sass */
+.asset_filters a.pressed {
+  background: #888888;
+  -moz-box-shadow: 0 1px 1px #333333 inset;
+  -webkit-box-shadow: 0 1px 1px #333333 inset;
+  -o-box-shadow: 0 1px 1px #333333 inset;
+  box-shadow: 0 1px 1px #333333 inset;
+  color: white;
+  text-shadow: 0 1px 0 #333333;
+}
+/* line 19, ../sass/admin/assets.sass */
+.asset_filters a.pressed:hover {
+  background: #888888;
+  -moz-box-shadow: 0 1px 1px #333333 inset;
+  -webkit-box-shadow: 0 1px 1px #333333 inset;
+  -o-box-shadow: 0 1px 1px #333333 inset;
+  box-shadow: 0 1px 1px #333333 inset;
+  color: white;
+  text-shadow: 0 1px 0 #333333;
 }
 
-#asset-tabs .asset-tab.here { background-color: #eae3c5; border: 1px solid #cdc295; border-bottom: 1px solid #eae3c5; }
+/* line 26, ../sass/admin/assets.sass */
+table.index#assets td.icon {
+  text-align: right;
+  width: 40px;
+  padding-top: 6px;
+  padding-bottom: 8px;
+  padding-right: 0;
+}
+/* line 32, ../sass/admin/assets.sass */
+table.index#assets td.icon img {
+  background-color: #f5f5f5;
+  -moz-background-clip: border;
+  -webkit-background-clip: border;
+  -o-background-clip: border-box;
+  -ms-background-clip: border-box;
+  -khtml-background-clip: border-box;
+  background-clip: border-box;
+  -moz-border-radius: 3px;
+  -webkit-border-radius: 3px;
+  -o-border-radius: 3px;
+  -ms-border-radius: 3px;
+  -khtml-border-radius: 3px;
+  border-radius: 3px;
+  -moz-box-shadow: rgba(0, 0, 0, 0.3) 1px 1px 2px 0;
+  -webkit-box-shadow: rgba(0, 0, 0, 0.3) 1px 1px 2px 0;
+  -o-box-shadow: rgba(0, 0, 0, 0.3) 1px 1px 2px 0;
+  box-shadow: rgba(0, 0, 0, 0.3) 1px 1px 2px 0;
+  display: block;
+  overflow: hidden;
+}
+/* line 39, ../sass/admin/assets.sass */
+table.index#assets th.content_type, table.index#assets td.content_type {
+  width: 120px;
+}
+/* line 41, ../sass/admin/assets.sass */
+table.index#assets td.content_type {
+  font-size: 10px;
+  font-weight: normal;
+}
+/* line 44, ../sass/admin/assets.sass */
+table.index#assets th.actions, table.index#assets td.actions {
+  width: 180px;
+}
+/* line 46, ../sass/admin/assets.sass */
+table.index#assets th.actions a.action, table.index#assets td.actions a.action {
+  color: black;
+  text-decoration: none;
+}
+/* line 49, ../sass/admin/assets.sass */
+table.index#assets th.actions a.action:hover, table.index#assets th.actions a.action.hover, table.index#assets td.actions a.action:hover, table.index#assets td.actions a.action.hover {
+  background: #d8d8d8;
+  background-image: -webkit-gradient(linear, 0% 0%, 0% 100%, color-stop(0%, #ffffff), color-stop(100%, #cccccc));
+  background-image: -moz-linear-gradient(top, #ffffff 0%, #cccccc 100%);
+  background-image: linear-gradient(top, #ffffff 0%, #cccccc 100%);
+  border: 1px solid #a5c9df;
+  margin: 0 24px 0 0;
+  -moz-border-radius: 5px;
+  -webkit-border-radius: 5px;
+  -o-border-radius: 5px;
+  -ms-border-radius: 5px;
+  -khtml-border-radius: 5px;
+  border-radius: 5px;
+}
+/* line 55, ../sass/admin/assets.sass */
+table.index#assets th.actions a.action:active, table.index#assets th.actions a.action.active, table.index#assets td.actions a.action:active, table.index#assets td.actions a.action.active {
+  background: #d8d8d8;
+  background-image: -webkit-gradient(linear, 0% 0%, 0% 100%, color-stop(0%, #cccccc), color-stop(100%, #ffffff));
+  background-image: -moz-linear-gradient(top, #cccccc 0%, #ffffff 100%);
+  background-image: linear-gradient(top, #cccccc 0%, #ffffff 100%);
+}
+/* line 58, ../sass/admin/assets.sass */
+table.index#assets th.actions a.action.selected, table.index#assets td.actions a.action.selected {
+  background: #c5e0f5;
+  background-image: -webkit-gradient(linear, 0% 0%, 0% 100%, color-stop(0%, #e5f5ff), color-stop(100%, #c5e0ff));
+  background-image: -moz-linear-gradient(top, #e5f5ff 0%, #c5e0ff 100%);
+  background-image: linear-gradient(top, #e5f5ff 0%, #c5e0ff 100%);
+  border: 1px solid #a5c9df;
+  margin: 0 24px 0 0;
+  -moz-border-radius-topleft: 5px;
+  -webkit-border-top-left-radius: 5px;
+  -o-border-top-left-radius: 5px;
+  -ms-border-top-left-radius: 5px;
+  -khtml-border-top-left-radius: 5px;
+  border-top-left-radius: 5px;
+  -moz-border-radius-topright: 5px;
+  -webkit-border-top-right-radius: 5px;
+  -o-border-top-right-radius: 5px;
+  -ms-border-top-right-radius: 5px;
+  -khtml-border-top-right-radius: 5px;
+  border-top-right-radius: 5px;
+  -moz-border-radius-bottomleft: 0;
+  -webkit-border-bottom-left-radius: 0;
+  -o-border-bottom-left-radius: 0;
+  -ms-border-bottom-left-radius: 0;
+  -khtml-border-bottom-left-radius: 0;
+  border-bottom-left-radius: 0;
+  -moz-border-radius-bottomright: 0;
+  -webkit-border-bottom-right-radius: 0;
+  -o-border-bottom-right-radius: 0;
+  -ms-border-bottom-right-radius: 0;
+  -khtml-border-bottom-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+/* line 65, ../sass/admin/assets.sass */
+table.index#assets th.actions a.action.confirmed, table.index#assets td.actions a.action.confirmed {
+  color: #666666;
+}
+/* line 67, ../sass/admin/assets.sass */
+table.index#assets.waiting {
+  opacity: 0.5;
+}
 
-
-#bucket ul, #page-attachments ul, #search-results ul { list-style: none; margin: 0; padding: 0 10px 0 0;}
-
-#assets li { position: relative; float:left; margin: 8px 0 8px 8px; height: 106px; padding-right: 24px;}
-#assets .asset  { position: relative; }
-#assets .asset img { padding: 3px; background-color:#eaeaea; border: 1px solid #ccc; }
-  
-#assets .info { position: absolute; top: 0; right: 0; }
-#assets .info p { margin: 0; }
-#assets .info a { display: block; color: black; text-decoration: none; height: 16; width: 16px; border: 1px solid #ccc; margin: 0 0 5px 0; }
-  
-#assets .info a#edit_asset { background: #fff url('/images/assets/edit.png') center center no-repeat; } 
-#assets .info a#add_asset { background: #fff url('/images/admin/plus.png') center center no-repeat; } 
-#assets .info a#remove_asset { background: #fff url('/images/admin/minus.png') center center no-repeat; } 
-#assets .info img.reorder { border: 1px solid #ccc; cursor: move; }
-  
-#assets .info  a:hover { color: blue; text-decoration: underline; }
-#assets .image_info h4 { margin: 0 0 10px 0; padding: 0; background: none; }
- 
-.pagination { margin-top: -10px;  margin-bottom: 25px; font-weight: bold; font-size: 90%; color: silver; }
-.pagination a { text-decoration: none; color: black; }
-.pagination a:hover { text-decoration: underline; color: blue; }
-.pagination .current { color: black; }
-
-#content .form-area p.upload { margin: 2px 0 10px 0; padding: 10px 10px; background: white; border: 1px solid #cdc295; }
-#content .form-area div.asset { margin: 2px 0; padding: 10px; background: white; border: 1px solid #cdc295; }
-#content p.content label.filename { margin-bottom: -5px; display: block; }
-#content .form-area p.upload  label { margin-bottom: 5px; display: block; }
-p#asset-name { padding-top: 8px; font-size: 80%; }
-p.info { font-size: 85%; }
-
-.asset-buttons { font-size: 80%; }
-
-table#site-map td.assets, table#site-map th.assets  { text-align: right; border: 1px solid red;}
-
-#upload-assets { }
-#upload-assets a { color: black; font-weight: bold; text-decoration: none; }
-#upload-assets a:hover { color: blue; text-decoration: underline; }
-#upload-form .file { margin: 10px 0 10px 25px;}
-#upload-form .upload-buttons { padding: 0 20px 20px 25px; font-size: 80%;}
-#upload-form label { margin-bottom: 5px; display: block; font-weight: bold; margin-left: 10px;  }
-#upload-form iframe { width: 1px; height: 1px; border: 0; }
-
-#asset-upload.waiting { color: #999;}
-#asset-upload.waiting .spinner { display: inline;}
-#asset-upload.waiting .upload-buttons { background: url(/images/admin/spinner.gif) no-repeat 10px 6px; }
-
-#filesearchform { margin-bottom: 18px; }
-#filesearchform #search p input{ margin: -3px 0 -3px; padding: 1px; }
-#filesearchform label { font-weight: bold; }
-#filesearchform a { font-weight: bold; color: black; text-decoration: none; outline: none; -moz-outline: none; }
-#filesearchform a:hover { color: blue; text-decoration: underline; }
-#filesearchform a.pressed { color: #cc0000; }
-
-.move a { cursor: move; }
-
-#show-bucket {
+/* line 71, ../sass/admin/assets.sass */
+.popup div.toolbar {
+  background: white;
+  background-image: -webkit-gradient(linear, 0% 0%, 0% 100%, color-stop(0%, #ffffff), color-stop(100%, #dddddd));
+  background-image: -moz-linear-gradient(top, #ffffff 0%, #dddddd 100%);
+  background-image: linear-gradient(top, #ffffff 0%, #dddddd 100%);
+  border-bottom: 1px solid #cccccc;
+  -moz-box-shadow: white 0 1px 0 0;
+  -webkit-box-shadow: white 0 1px 0 0;
+  -o-box-shadow: white 0 1px 0 0;
+  box-shadow: white 0 1px 0 0;
+  margin: -20px -20px 0;
+  padding: 6px 10px 3px 10px;
+  font-size: 95%;
+  height: 30px;
+  overflow: hidden;
+  *zoom: 1;
+}
+/* line 81, ../sass/admin/assets.sass */
+.popup div.toolbar .right {
   float: right;
+}
+/* line 83, ../sass/admin/assets.sass */
+.popup div.toolbar form.search {
+  padding: 2px 2px 0;
+}
+/* line 85, ../sass/admin/assets.sass */
+.popup div.toolbar form.search input[type=search] {
+  font-size: 12px;
+  -moz-border-radius: 100px;
+  -webkit-border-radius: 100px;
+  -o-border-radius: 100px;
+  -ms-border-radius: 100px;
+  -khtml-border-radius: 100px;
+  border-radius: 100px;
+  border: 1px solid #cccccc;
+  border-top-color: #999999;
+  border-left-color: #b0b0b0;
+  border-right-color: #bbbbbb;
+  background: white url('/images/admin/search.png') 4px center no-repeat;
+  -moz-box-shadow: rgba(0, 0, 0, 0.2) 0 1px 0 inset;
+  -webkit-box-shadow: rgba(0, 0, 0, 0.2) 0 1px 0 inset;
+  -o-box-shadow: rgba(0, 0, 0, 0.2) 0 1px 0 inset;
+  box-shadow: rgba(0, 0, 0, 0.2) 0 1px 0 inset;
+  width: 180px;
+  padding: 2px 8px 2px 20px;
+}
+
+/* line 98, ../sass/admin/assets.sass */
+#upload_asset iframe {
+  display: none;
+}
+
+/* line 102, ../sass/admin/assets.sass */
+#attach_asset .viewport {
+  overflow-x: hidden;
+}
+
+/* line 105, ../sass/admin/assets.sass */
+.attachment_actions {
+  text-align: right;
+  margin-bottom: -1em;
+}
+/* line 108, ../sass/admin/assets.sass */
+.attachment_actions ul {
+  list-style-type: none;
+}
+/* line 5, ../../../../../../../opt/local/lib/ruby/gems/1.8/gems/compass-0.10.5/frameworks/compass/stylesheets/compass/utilities/lists/_inline-list.scss */
+.attachment_actions ul, .attachment_actions ul li {
+  margin: 0px;
+  padding: 0px;
+  display: inline;
+}
+/* line 110, ../sass/admin/assets.sass */
+.attachment_actions li {
+  padding-left: 1em;
+}
+/* line 112, ../sass/admin/assets.sass */
+.attachment_actions a {
+  color: white !important;
+  text-shadow: 1px 1px 0 #888888;
+}
+
+/* line 117, ../sass/admin/assets.sass */
+.attachment_list > ul {
+  background: #7e7e7e;
+  -moz-border-radius: 5px;
+  -webkit-border-radius: 5px;
+  -o-border-radius: 5px;
+  -ms-border-radius: 5px;
+  -khtml-border-radius: 5px;
+  border-radius: 5px;
+  padding: 1em;
+  margin: 1em 0;
+  height: 110px;
+  overflow-y: hidden;
+  overflow-x: auto;
+}
+/* line 125, ../sass/admin/assets.sass */
+.attachment_list > ul > li {
+  display: block;
+  float: left;
+  margin: 0 10px 0 0;
+  width: 110px;
+  height: 110px;
   position: relative;
 }
-#show-bucket a { display: block; text-decoration: none; color: black; border: 1px solid rgb(0, 92, 157);
-  line-height: 20px; width: 120px; cursor: pointer; margin: 0 5px; padding: 5px 10px;
-  font-size: 80%; font-style: italic; background: white; -moz-border-radius: 3px; -webkit-border-radius: 3px;
+/* line 132, ../sass/admin/assets.sass */
+.attachment_list > ul > li .front, .attachment_list > ul > li .back {
+  display: block;
+  background: #e6eaed;
+  border: 5px solid white;
+  position: absolute;
+  width: 100px;
+  height: 100px;
+  text-align: center;
 }
-
-p.haserror {
-  border-left-width: 4px;
-  border-left-style: solid;
-  border-left-color: #d1005d;
-  margin-left: -16px;
-  padding-left: 12px;
-  color: #d1005d; }
-  p.haserror input, p.haserror textarea {
-    border-width: 1px;
-    border-style: solid;
-    border-color: #d1005d; }
-  p.haserror label {
-    color: #d1005d; }
+/* line 140, ../sass/admin/assets.sass */
+.attachment_list > ul > li .front {
+  -moz-box-shadow: #333333 1px 1px 5px 0;
+  -webkit-box-shadow: #333333 1px 1px 5px 0;
+  -o-box-shadow: #333333 1px 1px 5px 0;
+  box-shadow: #333333 1px 1px 5px 0;
+  text-align: center;
+}
+/* line 143, ../sass/admin/assets.sass */
+.attachment_list > ul > li .back {
+  color: #333333;
+  overflow: hidden;
+  opacity: 0;
+  -ms-filter: progid:DXImageTransform.Microsoft.Alpha(Opacity=0);
+  filter: progid:DXImageTransform.Microsoft.Alpha(Opacity=0);
+}
+/* line 147, ../sass/admin/assets.sass */
+.attachment_list > ul > li .title {
+  color: #333333;
+  font-size: 10px;
+  overflow: hidden;
+  margin: 10px 4px;
+  height: 15px;
+  line-height: 15px;
+  text-overflow: ellipsis;
+}
+/* line 155, ../sass/admin/assets.sass */
+.attachment_list > ul > li .icon {
+  height: 63px;
+  line-height: 63px;
+}
+/* line 158, ../sass/admin/assets.sass */
+.attachment_list > ul > li .icon img {
+  vertical-align: bottom;
+}
+/* line 161, ../sass/admin/assets.sass */
+.attachment_list > ul > li ul.actions li {
+  margin: 5px 0;
+  padding: 0 10px;
+  font-size: 10px;
+}
+/* line 165, ../sass/admin/assets.sass */
+.attachment_list > ul > li ul.actions a {
+  background: #666666;
+  background: rgba(0, 0, 0, 0.8);
+  -moz-border-radius: 5px;
+  -webkit-border-radius: 5px;
+  -o-border-radius: 5px;
+  -ms-border-radius: 5px;
+  -khtml-border-radius: 5px;
+  border-radius: 5px;
+  color: #dddddd;
+  display: block;
+  padding: 2px 10px;
+  text-decoration: none;
+}
+/* line 173, ../sass/admin/assets.sass */
+.attachment_list > ul > li ul.actions a:hover {
+  background: #999999;
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+}
+/* line 178, ../sass/admin/assets.sass */
+.attachment_list > ul > li.unsaved .front {
+  opacity: 0.4;
+}
+/* line 181, ../sass/admin/assets.sass */
+.attachment_list > ul > li:hover .back {
+  opacity: 1;
+  -ms-filter: progid:DXImageTransform.Microsoft.Alpha(Opacity=100);
+  filter: progid:DXImageTransform.Microsoft.Alpha(Opacity=100);
+}
+/* line 184, ../sass/admin/assets.sass */
+.attachment_list > ul > li.image:hover .back {
+  background: rgba(255, 255, 255, 0.6);
+}

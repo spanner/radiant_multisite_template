@@ -1,114 +1,103 @@
-document.observe("dom:loaded", function() {
-  if($('asset-bucket')){
-    new Draggable('asset-bucket', { starteffect: false, endeffect: false });
-  }
-  if($('page-attachments')){
-    Asset.ChooseTabByName('page-attachments');
-  }
-});
-
 var Asset = {};
 
-Asset.Tabs = Behavior.create({
-  onclick: function(e){
-    e.stop();
-    Asset.ChooseTab(this.element);
-  }
-});
-
-// factored out so that it can be called in an ajax response
-
-Asset.ChooseTab = function (element) {
-  var pane = $(element.href.split('#')[1]);
-  var panes = $('assets').select('.pane');
-  
-  var tabs = $('asset-tabs').select('.asset-tab');
-  tabs.each(function(tab) {tab.removeClassName('here');});
-  
-  element.addClassName('here');;
-  panes.each(function(pane) {Element.hide(pane);});
-  Element.show($(pane));
-}
-
-Asset.ChooseTabByName = function (tabname) {
-  var element = $('tab_' + tabname);
-  Asset.ChooseTab(element);
-}
-
-// factored out so that it can be called after new page part creation
-
-Asset.MakeDraggables = function () { 
-  $$('div.asset').each(function(element){
-    new Draggable(element, { revert: true });
-    element.addClassName('move');
-  });
-}
-
-Asset.DisableLinks = Behavior.create({
-  onclick: function(e){
-    e.stop();
-  }
-});
-
-Asset.AddToPage = Behavior.create({
-  onclick: function(e){
-    e.stop();
-    url = this.element.href;
-    new Ajax.Updater('attachments', url, {
-      asynchronous : true, 
-      evalScripts  : true, 
-      method       : 'get'
-      // onComplete   : Element.highlight('page-attachments')
+Asset.AddNewAttachment = Behavior.create({
+  onclick: function (e) {
+    if (e) e.stop();
+    var url = this.element.href;
+    new Ajax.Request(url, {
+      asynchronous: true, 
+      evalScripts: true, 
+      method: 'get',
+      onSuccess: function(transport) {
+        var new_id  = new Date().getTime();
+        $('attachment_fields').insert(transport.responseText.replace(/new_attachment/g, new_id));
+        // Need to restore this some how
+        // $('attachments').down('span.note').update('save page to commit changes');
+      }
     });
-    
   }
 });
 
-Asset.MakeDroppables = function () {
-  $$('.textarea').each(function(box){
-    if (!box.hasClassName('droppable')) {
-      Droppables.add(box, {
-        accept: 'asset',
-        onDrop: function(element) {
-          var link = element.select('a.bucket_link')[0];
-          var asset_id = element.id.split('_').last();
-          var classes = element.className.split(' ');
-          var tag_type = classes[0];
-          var tag = '<r:assets:' + tag_type + ' id="' + asset_id + '" size="original" />';
-          //Form.Element.focus(box);
-        	if(!!document.selection){
-        		box.focus();
-        		var range = (box.range) ? box.range : document.selection.createRange();
-        		range.text = tag;
-        		range.select();
-        	}else if(!!box.setSelectionRange){
-        		var selection_start = box.selectionStart;
-        		box.value = box.value.substring(0,selection_start) + tag + box.value.substring(box.selectionEnd);
-        		box.setSelectionRange(selection_start + tag.length,selection_start + tag.length);
-        	}
-        	box.focus();
-        }
-      });      
-    	box.addClassName('droppable');
+Asset.RemoveNewAttachment = Behavior.create({
+  onclick: function (e) {
+    if (e) e.stop();
+    var container = this.element.up('li.asset');
+    container.down('input').remove();
+    container.dropOut();
+  }
+});
+
+Asset.DetachAttachment = Behavior.create({
+  onclick: function (e) {
+    if (e) e.stop();
+    var container = this.element.up('li.asset');
+    container.down('input.destroyer').value = 1;
+    container.dropOut();
+    $('attachments').down('span.note').update('Save page to commit changes');
+  }
+});
+
+Asset.CatchUpload = Behavior.create({
+  onload: function (e) {
+    if (e) e.stop();
+    var html = this.element.contentDocument.body.innerHTML;
+    if (html && html != "") {
+      var new_id  = new Date().getTime();
+      $('attachment_fields').insert(html.replace(/new_attachment/g, new_id));
+      $('upload_asset').closePopup();
+      this.element.empty();
     }
-  });
-}
-
-Asset.ShowBucket = Behavior.create({
-  onclick: function(e){
-    e.stop();
-    var element = $('asset-bucket');
-    element.centerInViewport();
-    element.toggle();
-    Asset.MakeDroppables();
   }
 });
 
-Asset.HideBucket = Behavior.create({
+
+// // alternatively, you can create an attachment immediately. The whole attachments list is refreshed.
+// 
+// Asset.Attacher = Behavior.create({
+//   onclick: function (e) {
+//     if (e) e.stop();
+//     var attachment_form = this.element.parentNode;
+//     new Ajax.Updater('attachments', attachment_form.action, {
+//       asynchronous: true, 
+//       evalScripts: true, 
+//       parameters: Form.serialize(attachment_form),
+//       method: 'post'
+//     });
+//   }
+// });
+// 
+// Asset.Detacher = Behavior.create({
+//   onclick: function (e) {
+//     e.stop();
+//     var url = this.element.href;
+//     new Ajax.Updater('attachments', url, {
+//       asynchronous : true, 
+//       evalScripts : true, 
+//       method: 'post'
+//     });
+//   }
+// });
+
+
+// Asset-filter and search functions are available wherever the asset_table partial is displayed
+
+Asset.NoFileTypes = Behavior.create({
   onclick: function(e){
     e.stop();
-    var element = $('asset-bucket');
-    element.hide();
+    var element = this.element;
+    var search_form = $('filesearchform');
+    if(!element.hasClassName('pressed')) {
+      $$('a.selective').each(function(el) { el.removeClassName('pressed'); });
+      $$('input.selective').each(function(el) { el.removeAttribute('checked'); });
+      element.addClassName('pressed');
+      new Ajax.Updater('assets_table', search_form.action, {
+        asynchronous: true, 
+        evalScripts:  true, 
+        parameters:   Form.serialize(search_form),
+        method: 'get',
+        onComplete: 'assets_table'
+      });
+    }
   }
 });
 
@@ -116,14 +105,16 @@ Asset.FileTypes = Behavior.create({
   onclick: function(e){
     e.stop();
     var element = this.element;
-    var type_id = element.text.downcase();
+    var type_id = element.readAttribute("rel");
     var type_check = $(type_id + '-check');
     var search_form = $('filesearchform');
     if(element.hasClassName('pressed')) {
       element.removeClassName('pressed');
       type_check.removeAttribute('checked');
+      if ($$('a.selective.pressed').length == 0) $('select_all').addClassName('pressed');
     } else {
       element.addClassName('pressed');
+      $$('a.deselective').each(function(el) { el.removeClassName('pressed'); });
       type_check.setAttribute('checked', 'checked');
     }
     new Ajax.Updater('assets_table', search_form.action, {
@@ -136,35 +127,36 @@ Asset.FileTypes = Behavior.create({
   }
 });
 
-Asset.WaitingForm = Behavior.create({
-  onsubmit: function(e){
-    this.element.addClassName('waiting');
-    $('asset_submit').disable();
-    return true;
+Asset.CopyButton = Behavior.create({
+  initialize: function(){
+    var clip = new ZeroClipboard.Client();
+    var asset_id = this.element.id.replace('copy_', '');
+    clip.setText('<r:assets:image size="" id="' + asset_id + '" />');
+    clip.setHandCursor( true );
+    
+    // this doesn't position the clip correctly if the buttons aren't visible at the time
+    clip.glue(this.element);
+    
+    clip.addEventListener( 'onComplete', function (client, text) {
+      var element = client.domElement;
+      var contents = element.innerHTML;
+      element.update(contents.replace('Copy', 'Copied'));
+      element.update().delay(2000, contents);
+    });
+  },
+  onClick: function (e) {
+    e.stop();
   }
 });
 
-Asset.ResetForm = function (name) {
-  var element = $('asset-upload');
-  element.removeClassName('waiting');
-  $('asset_submit').enable();
-  element.reset();
-}
-
-Asset.AddAsset = function (name) {
-  element = $(name); 
-  asset = element.select('.asset')[0];
-  if (asset) {
-    new Draggable(asset, { revert: true });
-  }
-}
 
 Event.addBehavior({
-  '#asset-tabs a'     : Asset.Tabs,
-  '#close-link a'     : Asset.HideBucket,
-  '#show-bucket a'    : Asset.ShowBucket,
-  '#filesearchform a' : Asset.FileTypes,
-  '#asset-upload'     : Asset.WaitingForm,
-  'div.asset a'       : Asset.DisableLinks,
-  'a.add_asset'       : Asset.AddToPage
+  'iframe#ulframe': Asset.CatchUpload,
+  'a.attach_asset': Asset.AddNewAttachment,
+  'a.unattach_asset': Asset.RemoveNewAttachment,
+  'a.detach_asset': Asset.DetachAttachment,
+  'form.upload_asset': Asset.Uploader,
+  'a.deselective': Asset.NoFileTypes,
+  'a.selective': Asset.FileTypes,
+  'a.copy': Asset.CopyButton
 });

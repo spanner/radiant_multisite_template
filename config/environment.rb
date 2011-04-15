@@ -18,12 +18,13 @@ Radiant::Initializer.run do |config|
   # extensions in vendor/extensions are loaded, in alphabetical order. :all
   # can be used as a placeholder for all extensions not explicitly named.
   # config.extensions = [ :all ]
-  config.extensions = [:sites, :paperclipped, :all ]
+  config.extensions = [:sites, :all ]
   
   # By default, only English translations are loaded. Remove any of these from
   # the list below if you'd like to provide any of the supported languages
-  config.extensions -= [:dutch_language_pack, :french_language_pack, :german_language_pack,
-                        :italian_language_pack, :japanese_language_pack, :russian_language_pack]
+  config.ignore_extensions [:dutch_language_pack, :french_language_pack, :german_language_pack,
+                            :italian_language_pack, :japanese_language_pack, :russian_language_pack,
+                            :debug]
 
   # Your secret key for verifying cookie session data integrity.
   # If you change this key, all old sessions will become invalid!
@@ -79,6 +80,7 @@ Radiant::Initializer.run do |config|
   config.gem 'paperclip'
   config.gem 'compass'
   config.gem 'compass-960-plugin', :lib => 'ninesixty'
+  config.gem 'radiant-assets-extension', :lib => false
 
   config.after_initialize do
     # Add new inflection rules using the following format:
