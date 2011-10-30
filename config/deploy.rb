@@ -33,7 +33,7 @@ after "deploy:update" do
   run "ln -s #{shared_path}/public/robots.txt #{current_release}/public/robots.txt"
   run "ln -s #{shared_path}/public/images/local #{current_release}/public/images/local"
   run "ln -s #{shared_path}/public/fonts #{current_release}/public/fonts"
-  run "ln -s /var/www/radiant_beta #{current_release}/vendor/radiant"
+  run "ln -s /var/www/radiant_edge #{current_release}/vendor/radiant"
 end
 
 namespace :deploy do
