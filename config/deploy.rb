@@ -1,4 +1,4 @@
-set :application, "multi_radiant"
+set :application, "mrp"
 set :scm, :git
 set :repository, "git@github.com:spanner/radiant_multisite_template.git"
 set :git_enable_submodules, 1
@@ -10,7 +10,7 @@ set :branch, 'master'
 
 role :web, "moriarty.spanner.org"
 role :app, "moriarty.spanner.org"
-# role :db,  "data.spanner.org", :primary => true
+role :db,  "moriarty.spanner.org", :primary => true
 
 set :deploy_to, "/var/www/#{application}"
 set :deploy_via, :remote_cache

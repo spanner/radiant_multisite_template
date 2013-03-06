@@ -1,2 +1,2 @@
-set :deploy_to, "/var/www/multi_staging"
+set :deploy_to, "/var/www/mrs"
 set :rails_env, "staging"
