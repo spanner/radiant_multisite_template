@@ -1,8 +1,12 @@
+
 set :application, "mrp"
 set :scm, :git
 set :repository, "git@github.com:spanner/radiant_multisite_template.git"
 set :git_enable_submodules, 1
-set :ssh_options, { :forward_agent => true }
+set :ssh_options, { 
+  :forward_agent => true,
+  :keys => ["~/.ssh/moriarty.pem"]
+}
 
 set :user, 'spanner'
 set :group, 'spanner'
